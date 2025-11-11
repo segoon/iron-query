@@ -205,6 +205,15 @@ class Table;
 
 class [[nodiscard]] VirtualTable {
 public:
+    // TODO: formatted string, e.g.:
+    //
+    // FROM
+    //     users
+    // SELECT
+    //     a,
+    //     b
+    // WHERE
+    //     a > b
     virtual std::string ToString() const = 0;
 
     virtual std::string ToStringBracketed() const { return "(" + ToString() + ")"; }
