@@ -100,3 +100,11 @@ TEST(Column, As) {
 
     EXPECT_EQ(From(tbl.As("bar")).Select("bar.name").ToString(), "SELECT bar.name FROM (foo AS bar)");
 }
+
+TEST(TableWithColumns, Simple) {
+    Column name{"name", "TEXT"};
+    Column age{"age", "BIGINT"};
+    TableWithColumns tbl("foo", {name, age});
+
+    EXPECT_EQ(From(tbl).Select(tbl.SelectArgAll()).ToString(), "SELECT name, age FROM foo");
+}

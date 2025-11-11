@@ -23,7 +23,6 @@ namespace sql_builder {
 /// 2) Automatically use full set of table column names after schema migration;
 /// 3)
 
-
 class Table;
 
 class [[nodiscard]] VirtualTable {
@@ -47,10 +46,8 @@ private:
     std::string name_;
 };
 
-inline
-    Table VirtualTable::As(std::string_view name) const
-{
-	return Table("(" + ToString() + " AS " + std::string(name) + ")");
+inline Table VirtualTable::As(std::string_view name) const {
+    return Table("(" + ToString() + " AS " + std::string(name) + ")");
 }
 
 class [[nodiscard]] Expr {
@@ -200,9 +197,17 @@ Expr Dot(std::string_view table_name, const Column&);
 
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
-    TableWithColumns(std::initializer_list<Column>);
+    TableWithColumns(std::string name, std::initializer_list<Column> columns)
+        : Table(std::move(name)), columns_(columns) {}
 
-    Expr SelectArgAll() const;
+    Expr SelectArgAll() const {
+        std::string s;
+        for (const auto& col : columns_) {
+            if (!s.empty()) s += ", ";
+            s += col.name;
+        }
+        return Expr(s);
+    }
 
 private:
     std::vector<Column> columns_;
