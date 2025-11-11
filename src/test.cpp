@@ -34,6 +34,12 @@ TEST(Select, OrderBy) {
     EXPECT_EQ(From(tbl).Select("*").OrderBy("name").ToString(), "SELECT * FROM test ORDER BY name");
 }
 
+TEST(Select, OrderByMulti) {
+    Table tbl("test");
+
+    EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToString(), "SELECT * FROM test ORDER BY name, age");
+}
+
 TEST(Select, Full) {
     Table tbl("test");
 

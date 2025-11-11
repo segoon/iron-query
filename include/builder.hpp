@@ -21,7 +21,6 @@ namespace sql_builder {
 /// 1) Dynamically build complex WHERE clauses with something
 ///    better than raw strings concatenation;
 /// 2) Automatically use full set of table column names after schema migration;
-/// 3)
 
 // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
 enum class OperatorPrecedence {
@@ -253,9 +252,16 @@ public:
         return std::move(*this);
     }
 
-    // TODO: multiple args
     SelectExpr OrderBy(std::string_view by) && {
         order_by_ = by;
+        return std::move(*this);
+    }
+
+    SelectExpr OrderBy(std::initializer_list<std::string_view> by) && {
+        for (const auto& arg : by) {
+            if (!order_by_.empty()) order_by_ += ", ";
+            order_by_ += arg;
+        }
         return std::move(*this);
     }
 
@@ -348,9 +354,6 @@ struct [[nodiscard]] Column final {
 
     Expr operator==(const Expr&) const;
 };
-
-// TODO: ugly/non-intuitive :(
-Expr Dot(std::string_view table_name, const Column&);
 
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
