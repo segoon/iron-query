@@ -82,6 +82,61 @@ public:
 
     Expr(std::string expr, OperatorPrecedence precedence) : expr_(std::move(expr)), precedence_(precedence) {}
 
+    Expr Dot(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kDot) + "." + other.Extract(OperatorPrecedence::kDot), OperatorPrecedence::kDot
+        );
+    }
+
+    Expr Cast(const std::string& type) const {
+        return Expr(
+            "CAST (" + Extract(OperatorPrecedence::kTypecast) + " AS " + type + ")", OperatorPrecedence::kTypecast
+        );
+    }
+
+    Expr Collate(const std::string& collation) const {
+        return Expr(Extract(OperatorPrecedence::kCollate) + " COLLATE " + collation, OperatorPrecedence::kCollate);
+    }
+
+    Expr operator[](const Expr& other) const {
+        return Expr(Extract(OperatorPrecedence::kIndex) + "[" + other.ToString() + "]");
+    }
+
+    Expr operator^(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kExp) + " ^ " + other.Extract(OperatorPrecedence::kExp),
+            OperatorPrecedence::kExp
+        );
+    }
+
+    Expr Between(const Expr& a, const Expr& b) const {
+        return Expr(
+            Extract(OperatorPrecedence::kBetween) + " BETWEEN " + a.Extract(OperatorPrecedence::kBetween) + " AND " + b.Extract(OperatorPrecedence::kBetween),
+            OperatorPrecedence::kBetween
+        );
+    }
+
+    Expr Like(const Expr& a) const {
+        return Expr(
+            Extract(OperatorPrecedence::kBetween) + " LIKE " + a.Extract(OperatorPrecedence::kBetween),
+            OperatorPrecedence::kBetween
+        );
+    }
+
+    Expr In(const Expr& a) const {
+        return Expr(
+            Extract(OperatorPrecedence::kBetween) + " IN " + a.Extract(OperatorPrecedence::kBetween),
+            OperatorPrecedence::kBetween
+        );
+    }
+
+    Expr NotIn(const Expr& a) const {
+        return Expr(
+            Extract(OperatorPrecedence::kBetween) + " NOT IN " + a.Extract(OperatorPrecedence::kBetween),
+            OperatorPrecedence::kBetween
+        );
+    }
+
     Expr operator<(const Expr& other) const {
         return Expr(
             Extract(OperatorPrecedence::kCompare) + " < " + other.Extract(OperatorPrecedence::kCompare),

@@ -131,3 +131,27 @@ TEST(Expr, Not) {
     EXPECT_EQ((!(Expr(1) < 2)).ToString(), "NOT 1 < 2");
     EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
 }
+
+TEST(Expr, Dot) {
+    EXPECT_EQ(Expr("foo").Dot("bar").ToString(), "foo.bar");
+}
+
+TEST(Expr, Cast) {
+    EXPECT_EQ(Expr("1").Cast("TEXT").ToString(), "CAST (1 AS TEXT)");
+}
+
+TEST(Expr, Collate) {
+    EXPECT_EQ(Expr("a").Collate(R"("C")").ToString(), R"(a COLLATE "C")");
+}
+
+TEST(Expr, Index) {
+    EXPECT_EQ(Expr("a")["b"].ToString(), "a[b]");
+}
+
+TEST(Expr, Exp) {
+    EXPECT_EQ((Expr("a") ^ 2).ToString(), "a ^ 2");
+}
+
+TEST(Expr, Between) {
+    EXPECT_EQ(Expr("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2");
+}
