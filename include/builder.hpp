@@ -23,32 +23,35 @@ namespace sql_builder {
 /// 2) Automatically use full set of table column names after schema migration;
 /// 3)
 
+
+class Table;
+
 class [[nodiscard]] VirtualTable {
 public:
     virtual std::string ToString() const = 0;
 
-    virtual std::string ToStringBracketed() const {
-        return "(" + ToString() + ")";
-    }
+    virtual std::string ToStringBracketed() const { return "(" + ToString() + ")"; }
 
-    VirtualTable As(std::string_view name) const;
+    Table As(std::string_view name) const;
 };
 
 class [[nodiscard]] Table /* not final! */ : public VirtualTable {
 public:
     Table(std::string name) : name_(std::move(name)) {}
 
-    std::string_view Name() const;
-
     std::string ToString() const override { return name_; }
 
-    std::string ToStringBracketed() const override {
-	    return ToString();
-    }
+    std::string ToStringBracketed() const override { return ToString(); }
 
 private:
     std::string name_;
 };
+
+inline
+    Table VirtualTable::As(std::string_view name) const
+{
+	return Table("(" + ToString() + " AS " + std::string(name) + ")");
+}
 
 class [[nodiscard]] Expr {
 public:
@@ -68,7 +71,7 @@ public:
 
     Expr operator&&(const Expr&) const;
 
-    std::string Extract() { return expr_; }
+    std::string Extract() const { return expr_; }
 
 private:
     std::string expr_;
@@ -80,6 +83,14 @@ public:
 
     SelectExpr Select(Expr exp) && {
         select_ = exp.Extract();
+        return std::move(*this);
+    }
+
+    SelectExpr Select(std::initializer_list<Expr> exps) && {
+        for (const auto& exp : exps) {
+            if (!select_.empty()) select_ += ", ";
+            select_ += exp.Extract();
+        }
         return std::move(*this);
     }
 
@@ -149,18 +160,17 @@ struct [[nodiscard]] Cross final : JoinKind {
 class [[nodiscard]] Join final : public VirtualTable {
 public:
     Join(const VirtualTable& a, const VirtualTable& b, const JoinKind& kind)
-	    : a_(a.ToStringBracketed()), b_(b.ToStringBracketed()), kind_(kind.ToString()) {}
+        : a_(a.ToStringBracketed()), b_(b.ToStringBracketed()), kind_(kind.ToString()) {}
 
-    Join On(Expr exp) &&
-    {
+    Join On(Expr exp) && {
         on_ = exp.Extract();
         return std::move(*this);
     }
 
     std::string ToString() const override {
         auto s = a_ + " " + kind_ + " JOIN " + b_;
-	if (!on_.empty()) s += " ON " + on_;
-	return s;
+        if (!on_.empty()) s += " ON " + on_;
+        return s;
     }
 
 private:

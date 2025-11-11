@@ -16,6 +16,12 @@ TEST(Select, SelectSmthFrom) {
     EXPECT_EQ(From(tbl).Select("a, b").ToString(), "SELECT a, b FROM test");
 }
 
+TEST(Select, Multi) {
+    Table tbl("test");
+
+    EXPECT_EQ(From(tbl).Select({"a", "b"}).ToString(), "SELECT a, b FROM test");
+}
+
 TEST(Select, Where) {
     Table tbl("test");
 
@@ -31,7 +37,10 @@ TEST(Select, OrderBy) {
 TEST(Select, Full) {
     Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("a, b").Where("a = b").OrderBy("name").ToString(), "SELECT a, b FROM test WHERE a = b ORDER BY name");
+    EXPECT_EQ(
+        From(tbl).Select("a, b").Where("a = b").OrderBy("name").ToString(),
+        "SELECT a, b FROM test WHERE a = b ORDER BY name"
+    );
 }
 
 TEST(Delete, From) {
@@ -70,30 +79,24 @@ TEST(Join, On) {
 TEST(Join, SelectSelect) {
     Table tbl("foo");
 
-    EXPECT_EQ(Join(From(tbl).Select("a"), From(tbl).Select("b"), Cross()).On("a = b").ToString(), "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
+    EXPECT_EQ(
+        Join(From(tbl).Select("a"), From(tbl).Select("b"), Cross()).On("a = b").ToString(),
+        "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b"
+    );
 }
 
 TEST(Column, Select) {
     Table tbl("foo");
     Column name{"name", "TEXT"};
+    Column age{"age", "BIGINT"};
 
-    EXPECT_EQ(From(tbl).Select(name).ToString(), "SELECT name FROM foo");
+    EXPECT_EQ(From(tbl).Select({name, age}).ToString(), "SELECT name, age FROM foo");
 }
 
-/*
-void f() {
-    Column kName{"name", "text"};
-    Column kAge{"age", "bigint"};
-    TableWithColumns tbl2{
-        kName,
-        kAge,
-    };
+TEST(Column, As) {
+    Table tbl("foo");
+    Column name{"name", "TEXT"};
+    Column age{"age", "BIGINT"};
 
-    auto query = From(tbl2).Select(tbl2.SelectArgAll()).Where((kAge > 18) && (kName == Expr("john"))).ToString();
-    // auto result = pg->GetCluster()->Execute(kSlave, query);
-
-    DeleteFrom(tbl2).Where(kAge < 8).ToString();
-
-    Join(tbl.As("t1"), tbl.As("t2"), Inner()).On(Dot("t1", kName) == Dot("t2", kName)).ToString();
+    EXPECT_EQ(From(tbl.As("bar")).Select("bar.name").ToString(), "SELECT bar.name FROM (foo AS bar)");
 }
-*/
