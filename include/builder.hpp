@@ -44,7 +44,7 @@ enum class OperatorPrecedence {
     kExtract,  // pseudo precedence for "no brackets"
 };
 
-class [[nodiscard]] Expr {
+class [[nodiscard]] Expr final {
 public:
     Expr(std::string s) : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
 
@@ -200,6 +200,17 @@ private:
     OperatorPrecedence precedence_;
     std::string expr_;
 };
+
+const Expr _1 = "$1";
+const Expr _2 = "$2";
+const Expr _3 = "$3";
+const Expr _4 = "$4";
+const Expr _5 = "$5";
+const Expr _6 = "$6";
+const Expr _7 = "$7";
+const Expr _8 = "$8";
+const Expr _9 = "$9";
+const Expr _10 = "$10";
 
 class Table;
 
