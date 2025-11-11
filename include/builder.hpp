@@ -105,8 +105,7 @@ public:
 
     Expr operator||(const Expr& other) const {
         return Expr(
-            Extract(OperatorPrecedence::kOr) + " OR " + other.Extract(OperatorPrecedence::kOr),
-            OperatorPrecedence::kOr
+            Extract(OperatorPrecedence::kOr) + " OR " + other.Extract(OperatorPrecedence::kOr), OperatorPrecedence::kOr
         );
     }
 
@@ -137,6 +136,22 @@ public:
             OperatorPrecedence::kMul
         );
     }
+
+    Expr operator/(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kMul) + " / " + other.Extract(OperatorPrecedence::kMul),
+            OperatorPrecedence::kMul
+        );
+    }
+
+    Expr operator%(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kMul) + " % " + other.Extract(OperatorPrecedence::kMul),
+            OperatorPrecedence::kMul
+        );
+    }
+
+    Expr operator!() const { return Expr("NOT " + Extract(OperatorPrecedence::kNot), OperatorPrecedence::kNot); }
 
     std::string Extract(OperatorPrecedence precedence) const {
         if (precedence_ >= precedence)

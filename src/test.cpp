@@ -126,3 +126,8 @@ TEST(Expr, LogicalMath) {
     EXPECT_EQ((Expr(1) + 2 + 3).ToString(), "(1 + 2) + 3");
     EXPECT_EQ(((Expr(1) + 2) * 3).ToString(), "(1 + 2) * 3");
 }
+
+TEST(Expr, Not) {
+    EXPECT_EQ((!(Expr(1) < 2)).ToString(), "NOT 1 < 2");
+    EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
+}
