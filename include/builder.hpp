@@ -357,8 +357,11 @@ struct [[nodiscard]] Column final {
 
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
-    TableWithColumns(std::string name, std::initializer_list<Column> columns)
+    TableWithColumns(std::string name, std::vector<Column> columns)
         : Table(std::move(name)), columns_(columns) {}
+
+    TableWithColumns(std::string name, std::initializer_list<Column> columns)
+        : TableWithColumns(std::move(name), std::vector(columns)) {}
 
     Expr SelectArgAll() const {
         std::string s;
