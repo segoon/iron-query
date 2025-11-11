@@ -181,7 +181,6 @@ const std::vector<Column> kAll = {
 // The table itself
 const TableWithColumns kTable("users", kAll);
 
-
 // TODO: unable to create table fields with name "table" or "all", hmm...
 
-}
+}  // namespace users

@@ -220,14 +220,17 @@ public:
 
     std::string ToString() const override { return name_; }
 
-    std::string ToStringBracketed() const override { return ToString(); }
+    std::string ToStringBracketed() const override {
+        // It is a table with name, no need to bracket it
+        return ToString();
+    }
 
 private:
     std::string name_;
 };
 
 inline Table VirtualTable::As(std::string_view name) const {
-    return Table("(" + ToString() + " AS " + std::string(name) + ")");
+    return Table("(" + ToStringBracketed() + " AS " + std::string(name) + ")");
 }
 
 class [[nodiscard]] SelectExpr final : public VirtualTable {
@@ -357,8 +360,7 @@ struct [[nodiscard]] Column final {
 
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
-    TableWithColumns(std::string name, std::vector<Column> columns)
-        : Table(std::move(name)), columns_(columns) {}
+    TableWithColumns(std::string name, std::vector<Column> columns) : Table(std::move(name)), columns_(columns) {}
 
     TableWithColumns(std::string name, std::initializer_list<Column> columns)
         : TableWithColumns(std::move(name), std::vector(columns)) {}
