@@ -108,3 +108,21 @@ TEST(TableWithColumns, Simple) {
 
     EXPECT_EQ(From(tbl).Select(tbl.SelectArgAll()).ToString(), "SELECT name, age FROM foo");
 }
+
+TEST(Expr, symbol) {
+    EXPECT_EQ(Expr("x").ToString(), "x");
+    EXPECT_EQ(Expr(std::string("x")).ToString(), "x");
+    EXPECT_EQ(Expr(1).ToString(), "1");
+}
+
+TEST(Expr, Logical) {
+    EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == "age")).ToString(), "1 < 2 AND 2 = age");
+    EXPECT_EQ(((Expr("x") && Expr("y")) || Expr("z")).ToString(), "x AND y OR z");
+    EXPECT_EQ(((Expr("x") || Expr("y")) && Expr("z")).ToString(), "(x OR y) AND z");
+}
+
+TEST(Expr, LogicalMath) {
+    EXPECT_EQ((Expr(1) < 2 && Expr(3)*2+3 == 4).ToString(), "1 < 2 AND 3 * 2 + 3 = 4");
+    EXPECT_EQ((Expr(1) + 2 + 3).ToString(), "(1 + 2) + 3");
+    EXPECT_EQ(((Expr(1) + 2) * 3).ToString(), "(1 + 2) * 3");
+}

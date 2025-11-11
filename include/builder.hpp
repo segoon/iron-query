@@ -50,27 +50,105 @@ inline Table VirtualTable::As(std::string_view name) const {
     return Table("(" + ToString() + " AS " + std::string(name) + ")");
 }
 
+// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
+enum class OperatorPrecedence {
+    kSymbol,
+    kDot,
+    kTypecast,
+    kIndex,
+    kUnaryPlus,
+    kCollate,
+    kAt,
+    kExp,
+    kMul,
+    kPlus,
+    kAnyOther,
+    kBetween,
+    kCompare,
+    kIs,
+    kNot,
+    kAnd,
+    kOr,
+    kExtract,  // pseuo precedence for "no brackets"
+};
+
 class [[nodiscard]] Expr {
 public:
-    Expr(std::string s) : expr_(std::move(s)) {}
+    Expr(std::string s) : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
 
-    Expr(const char* s) : expr_(s) {}
+    Expr(const char* s) : expr_(s), precedence_(OperatorPrecedence::kSymbol) {}
 
     Expr(int i) : Expr(std::to_string(i)) {}
 
-    Expr operator<(const Expr& other) const { return Expr(expr_ + " < " + other.expr_); }
+    Expr(std::string expr, OperatorPrecedence precedence) : expr_(std::move(expr)), precedence_(precedence) {}
 
-    Expr operator>(const Expr&) const;
+    Expr operator<(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kCompare) + " < " + other.Extract(OperatorPrecedence::kCompare),
+            OperatorPrecedence::kCompare
+        );
+    }
 
-    Expr operator==(const Expr&) const;
+    Expr operator>(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kCompare) + " > " + other.Extract(OperatorPrecedence::kCompare),
+            OperatorPrecedence::kCompare
+        );
+    }
 
-    Expr operator||(const Expr&) const;
+    Expr operator==(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kCompare) + " = " + other.Extract(OperatorPrecedence::kCompare),
+            OperatorPrecedence::kCompare
+        );
+    }
 
-    Expr operator&&(const Expr&) const;
+    Expr operator||(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kOr) + " OR " + other.Extract(OperatorPrecedence::kOr),
+            OperatorPrecedence::kOr
+        );
+    }
 
-    std::string Extract() const { return expr_; }
+    Expr operator&&(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kAnd) + " AND " + other.Extract(OperatorPrecedence::kAnd),
+            OperatorPrecedence::kAnd
+        );
+    }
+
+    Expr operator+(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kPlus) + " + " + other.Extract(OperatorPrecedence::kPlus),
+            OperatorPrecedence::kPlus
+        );
+    }
+
+    Expr operator-(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kPlus) + " - " + other.Extract(OperatorPrecedence::kPlus),
+            OperatorPrecedence::kPlus
+        );
+    }
+
+    Expr operator*(const Expr& other) const {
+        return Expr(
+            Extract(OperatorPrecedence::kMul) + " * " + other.Extract(OperatorPrecedence::kMul),
+            OperatorPrecedence::kMul
+        );
+    }
+
+    std::string Extract(OperatorPrecedence precedence) const {
+        if (precedence_ >= precedence)
+            return "(" + expr_ + ")";
+        else
+            return expr_;
+    }
+
+    std::string ToString() const { return Extract(OperatorPrecedence::kExtract); }
 
 private:
+    OperatorPrecedence precedence_;
     std::string expr_;
 };
 
@@ -79,20 +157,20 @@ public:
     SelectExpr(const Table& tbl) : from_(tbl.ToStringBracketed()) {}
 
     SelectExpr Select(Expr exp) && {
-        select_ = exp.Extract();
+        select_ = exp.ToString();
         return std::move(*this);
     }
 
     SelectExpr Select(std::initializer_list<Expr> exps) && {
         for (const auto& exp : exps) {
             if (!select_.empty()) select_ += ", ";
-            select_ += exp.Extract();
+            select_ += exp.ToString();
         }
         return std::move(*this);
     }
 
     SelectExpr Where(Expr exp) && {
-        where_ = exp.Extract();
+        where_ = exp.ToString();
         return std::move(*this);
     }
 
@@ -126,7 +204,7 @@ public:
     DeleteFrom(const Table& tbl) : from_(tbl.ToStringBracketed()) {}
 
     DeleteFrom Where(Expr exp) && {
-        where_ = exp.Extract();
+        where_ = exp.ToString();
         return std::move(*this);
     }
 
@@ -160,7 +238,7 @@ public:
         : a_(a.ToStringBracketed()), b_(b.ToStringBracketed()), kind_(kind.ToString()) {}
 
     Join On(Expr exp) && {
-        on_ = exp.Extract();
+        on_ = exp.ToString();
         return std::move(*this);
     }
 
