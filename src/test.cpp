@@ -155,3 +155,21 @@ TEST(Expr, Exp) {
 TEST(Expr, Between) {
     EXPECT_EQ(Expr("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2");
 }
+
+TEST(Expr, Like) {
+    EXPECT_EQ(Expr("a").Like("a%b").ToString(), "a LIKE a%b");
+}
+
+TEST(Expr, In) {
+    EXPECT_EQ(Expr("a").In(From(Table("foo")).Select("bar")).ToString(), "a IN (SELECT bar FROM foo)");
+}
+
+TEST(Expr, NotIn) {
+    EXPECT_EQ(Expr("a").NotIn(From(Table("foo")).Select("bar")).ToString(), "a NOT IN (SELECT bar FROM foo)");
+}
+
+TEST(Expr, Is) {
+    EXPECT_EQ(Expr("a").IsTrue().ToString(), "a IS TRUE");
+    EXPECT_EQ(Expr("a").IsFalse().ToString(), "a IS FALSE");
+    EXPECT_EQ(Expr("a").IsNull().ToString(), "a IS NULL");
+}

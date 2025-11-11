@@ -23,33 +23,6 @@ namespace sql_builder {
 /// 2) Automatically use full set of table column names after schema migration;
 /// 3)
 
-class Table;
-
-class [[nodiscard]] VirtualTable {
-public:
-    virtual std::string ToString() const = 0;
-
-    virtual std::string ToStringBracketed() const { return "(" + ToString() + ")"; }
-
-    Table As(std::string_view name) const;
-};
-
-class [[nodiscard]] Table /* not final! */ : public VirtualTable {
-public:
-    Table(std::string name) : name_(std::move(name)) {}
-
-    std::string ToString() const override { return name_; }
-
-    std::string ToStringBracketed() const override { return ToString(); }
-
-private:
-    std::string name_;
-};
-
-inline Table VirtualTable::As(std::string_view name) const {
-    return Table("(" + ToString() + " AS " + std::string(name) + ")");
-}
-
 // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
 enum class OperatorPrecedence {
     kSymbol,
@@ -69,7 +42,7 @@ enum class OperatorPrecedence {
     kNot,
     kAnd,
     kOr,
-    kExtract,  // pseuo precedence for "no brackets"
+    kExtract,  // pseudo precedence for "no brackets"
 };
 
 class [[nodiscard]] Expr {
@@ -111,7 +84,8 @@ public:
 
     Expr Between(const Expr& a, const Expr& b) const {
         return Expr(
-            Extract(OperatorPrecedence::kBetween) + " BETWEEN " + a.Extract(OperatorPrecedence::kBetween) + " AND " + b.Extract(OperatorPrecedence::kBetween),
+            Extract(OperatorPrecedence::kBetween) + " BETWEEN " + a.Extract(OperatorPrecedence::kBetween) + " AND " +
+                b.Extract(OperatorPrecedence::kBetween),
             OperatorPrecedence::kBetween
         );
     }
@@ -136,6 +110,12 @@ public:
             OperatorPrecedence::kBetween
         );
     }
+
+    Expr IsTrue() const { return Expr(Extract(OperatorPrecedence::kIs) + " IS TRUE", OperatorPrecedence::kIs); }
+
+    Expr IsFalse() const { return Expr(Extract(OperatorPrecedence::kIs) + " IS FALSE", OperatorPrecedence::kIs); }
+
+    Expr IsNull() const { return Expr(Extract(OperatorPrecedence::kIs) + " IS NULL", OperatorPrecedence::kIs); }
 
     Expr operator<(const Expr& other) const {
         return Expr(
@@ -221,6 +201,35 @@ private:
     OperatorPrecedence precedence_;
     std::string expr_;
 };
+
+class Table;
+
+class [[nodiscard]] VirtualTable {
+public:
+    virtual std::string ToString() const = 0;
+
+    virtual std::string ToStringBracketed() const { return "(" + ToString() + ")"; }
+
+    Table As(std::string_view name) const;
+
+    operator Expr() && { return Expr(ToStringBracketed(), OperatorPrecedence::kSymbol); }
+};
+
+class [[nodiscard]] Table /* not final! */ : public VirtualTable {
+public:
+    Table(std::string name) : name_(std::move(name)) {}
+
+    std::string ToString() const override { return name_; }
+
+    std::string ToStringBracketed() const override { return ToString(); }
+
+private:
+    std::string name_;
+};
+
+inline Table VirtualTable::As(std::string_view name) const {
+    return Table("(" + ToString() + " AS " + std::string(name) + ")");
+}
 
 class [[nodiscard]] SelectExpr final : public VirtualTable {
 public:
