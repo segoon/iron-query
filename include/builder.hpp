@@ -203,18 +203,6 @@ const Expr _10 = "$10";
 
 class Table;
 
-class [[nodiscard]] TableAlias final {
-public:
-  TableAlias(std::string_view alias) : alias_(alias) {}
-
-  std::string Dot(const std::string &column) const {
-    return alias_ + "." + column;
-  }
-
-private:
-  std::string alias_;
-};
-
 /// @brief Any table value, including physical table, table result,
 /// materialized view, etc.
 class [[nodiscard]] VirtualTable {
@@ -422,6 +410,20 @@ public:
 
 private:
   std::vector<Column> columns_;
+};
+
+class [[nodiscard]] TableAlias final {
+public:
+  TableAlias(std::string_view alias) : alias_(alias) {}
+
+  std::string Dot(const std::string &column) const {
+    return alias_ + "." + column;
+  }
+
+  std::string Dot(const Column &column) const { return Dot(column.name); }
+
+private:
+  std::string alias_;
 };
 
 } // namespace sql_builder_pp

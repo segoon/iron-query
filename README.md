@@ -46,7 +46,7 @@ Table users("users");
 TableAlias left("left");
 TableAlias right("right");
 Column name("name", "TEXT");
-Column name("age", "BIGINT");
+Column age("age", "BIGINT");
 
 std::string query = Join(
     From(users.As(left)).Select("*"),
