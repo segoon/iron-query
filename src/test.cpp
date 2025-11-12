@@ -2,166 +2,185 @@
 
 #include <builder.hpp>
 
-using namespace sql_builder;
+using namespace sql_builder_pp;
 
 TEST(Select, From) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("*").ToString(), "SELECT * FROM test");
+  EXPECT_EQ(From(tbl).Select("*").ToString(), "SELECT * FROM test");
 }
 
 TEST(Select, SelectSmthFrom) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("a, b").ToString(), "SELECT a, b FROM test");
+  EXPECT_EQ(From(tbl).Select("a, b").ToString(), "SELECT a, b FROM test");
 }
 
 TEST(Select, Multi) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select({"a", "b"}).ToString(), "SELECT a, b FROM test");
+  EXPECT_EQ(From(tbl).Select({"a", "b"}).ToString(), "SELECT a, b FROM test");
 }
 
 TEST(Select, Where) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("*").Where("a = b").ToString(), "SELECT * FROM test WHERE a = b");
+  EXPECT_EQ(From(tbl).Select("*").Where("a = b").ToString(),
+            "SELECT * FROM test WHERE a = b");
 }
 
 TEST(Select, OrderBy) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("*").OrderBy("name").ToString(), "SELECT * FROM test ORDER BY name");
+  EXPECT_EQ(From(tbl).Select("*").OrderBy("name").ToString(),
+            "SELECT * FROM test ORDER BY name");
 }
 
 TEST(Select, OrderByMulti) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToString(), "SELECT * FROM test ORDER BY name, age");
+  EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToString(),
+            "SELECT * FROM test ORDER BY name, age");
 }
 
 TEST(Select, Full) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(
-        From(tbl).Select("a, b").Where("a = b").OrderBy("name").ToString(),
-        "SELECT a, b FROM test WHERE a = b ORDER BY name"
-    );
+  EXPECT_EQ(From(tbl).Select("a, b").Where("a = b").OrderBy("name").ToString(),
+            "SELECT a, b FROM test WHERE a = b ORDER BY name");
 }
 
 TEST(Delete, From) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(DeleteFrom(tbl).ToString(), "DELETE FROM test");
+  EXPECT_EQ(DeleteFrom(tbl).ToString(), "DELETE FROM test");
 }
 
 TEST(Delete, Where) {
-    Table tbl("test");
+  Table tbl("test");
 
-    EXPECT_EQ(DeleteFrom(tbl).Where("a = 1").ToString(), "DELETE FROM test WHERE a = 1");
+  EXPECT_EQ(DeleteFrom(tbl).Where("a = 1").ToString(),
+            "DELETE FROM test WHERE a = 1");
 }
 
 TEST(Join, Inner) {
-    Table tbl1("foo");
-    Table tbl2("bar");
+  Table tbl1("foo");
+  Table tbl2("bar");
 
-    EXPECT_EQ(Join(tbl1, tbl2, Inner()).ToString(), "foo INNER JOIN bar");
+  EXPECT_EQ(Join(tbl1, tbl2, Inner()).ToString(), "foo INNER JOIN bar");
 }
 
 TEST(Join, Cross) {
-    Table tbl1("foo");
-    Table tbl2("bar");
+  Table tbl1("foo");
+  Table tbl2("bar");
 
-    EXPECT_EQ(Join(tbl1, tbl2, Cross()).ToString(), "foo CROSS JOIN bar");
+  EXPECT_EQ(Join(tbl1, tbl2, Cross()).ToString(), "foo CROSS JOIN bar");
 }
 
 TEST(Join, On) {
-    Table tbl1("foo");
-    Table tbl2("bar");
+  Table tbl1("foo");
+  Table tbl2("bar");
 
-    EXPECT_EQ(Join(tbl1, tbl2, Cross()).On("foo.a = bar.b").ToString(), "foo CROSS JOIN bar ON foo.a = bar.b");
+  EXPECT_EQ(Join(tbl1, tbl2, Cross()).On("foo.a = bar.b").ToString(),
+            "foo CROSS JOIN bar ON foo.a = bar.b");
 }
 
 TEST(Join, SelectSelect) {
-    Table tbl("foo");
+  Table tbl("foo");
 
-    EXPECT_EQ(
-        Join(From(tbl).Select("a"), From(tbl).Select("b"), Cross()).On("a = b").ToString(),
-        "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b"
-    );
+  EXPECT_EQ(Join(From(tbl).Select("a"), From(tbl).Select("b"), Cross())
+                .On("a = b")
+                .ToString(),
+            "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
 }
 
 TEST(Column, Select) {
-    Table tbl("foo");
-    Column name{"name", "TEXT"};
-    Column age{"age", "BIGINT"};
+  Table tbl("foo");
+  Column name{"name", "TEXT"};
+  Column age{"age", "BIGINT"};
 
-    EXPECT_EQ(From(tbl).Select({name, age}).ToString(), "SELECT name, age FROM foo");
+  EXPECT_EQ(From(tbl).Select({name, age}).ToString(),
+            "SELECT name, age FROM foo");
 }
 
 TEST(Column, As) {
-    Table tbl("foo");
-    Column name{"name", "TEXT"};
+  Table tbl("foo");
+  Column name{"name", "TEXT"};
 
-    auto bar = "bar";
-    EXPECT_EQ(From(tbl.As(bar)).Select(Expr(bar).Dot(name)).ToString(), "SELECT bar.name FROM (foo AS bar)");
+  auto bar = "bar";
+  EXPECT_EQ(From(tbl.As(bar)).Select(Expr(bar).Dot(name)).ToString(),
+            "SELECT bar.name FROM (foo AS bar)");
 }
 
 TEST(TableWithColumns, Simple) {
-    Column name{"name", "TEXT"};
-    Column age{"age", "BIGINT"};
-    TableWithColumns tbl("foo", {name, age});
+  Column name{"name", "TEXT"};
+  Column age{"age", "BIGINT"};
+  TableWithColumns tbl("foo", {name, age});
 
-    EXPECT_EQ(From(tbl).Select(tbl.SelectArgAll()).ToString(), "SELECT name, age FROM foo");
+  EXPECT_EQ(From(tbl).Select(tbl.SelectArgAll()).ToString(),
+            "SELECT name, age FROM foo");
 }
 
 TEST(Expr, symbol) {
-    EXPECT_EQ(Expr("x").ToString(), "x");
-    EXPECT_EQ(Expr(std::string("x")).ToString(), "x");
-    EXPECT_EQ(Expr(1).ToString(), "1");
+  EXPECT_EQ(Expr("x").ToString(), "x");
+  EXPECT_EQ(Expr(std::string("x")).ToString(), "x");
+  EXPECT_EQ(Expr(1).ToString(), "1");
 }
 
 TEST(Expr, Logical) {
-    EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == "age")).ToString(), "1 < 2 AND 2 = age");
-    EXPECT_EQ(((Expr("x") && Expr("y")) || Expr("z")).ToString(), "x AND y OR z");
-    EXPECT_EQ(((Expr("x") || Expr("y")) && Expr("z")).ToString(), "(x OR y) AND z");
+  EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == "age")).ToString(),
+            "1 < 2 AND 2 = age");
+  EXPECT_EQ(((Expr("x") && Expr("y")) || Expr("z")).ToString(), "x AND y OR z");
+  EXPECT_EQ(((Expr("x") || Expr("y")) && Expr("z")).ToString(),
+            "(x OR y) AND z");
 }
 
 TEST(Expr, LogicalMath) {
-    EXPECT_EQ((Expr(1) < 2 && Expr(3) * 2 + 3 == 4).ToString(), "1 < 2 AND 3 * 2 + 3 = 4");
-    EXPECT_EQ((Expr(1) + 2 + 3).ToString(), "(1 + 2) + 3");
-    EXPECT_EQ(((Expr(1) + 2) * 3).ToString(), "(1 + 2) * 3");
+  EXPECT_EQ((Expr(1) < 2 && Expr(3) * 2 + 3 == 4).ToString(),
+            "1 < 2 AND 3 * 2 + 3 = 4");
+  EXPECT_EQ((Expr(1) + 2 + 3).ToString(), "(1 + 2) + 3");
+  EXPECT_EQ(((Expr(1) + 2) * 3).ToString(), "(1 + 2) * 3");
 }
 
 TEST(Expr, Not) {
-    EXPECT_EQ((!(Expr(1) < 2)).ToString(), "NOT 1 < 2");
-    EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
+  EXPECT_EQ((!(Expr(1) < 2)).ToString(), "NOT 1 < 2");
+  EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
 }
 
 TEST(Expr, Dot) { EXPECT_EQ(Expr("foo").Dot("bar").ToString(), "foo.bar"); }
 
-TEST(Expr, Cast) { EXPECT_EQ(Expr("1").Cast("TEXT").ToString(), "CAST (1 AS TEXT)"); }
+TEST(Expr, Cast) {
+  EXPECT_EQ(Expr("1").Cast("TEXT").ToString(), "CAST (1 AS TEXT)");
+}
 
-TEST(Expr, Collate) { EXPECT_EQ(Expr("a").Collate(R"("C")").ToString(), R"(a COLLATE "C")"); }
+TEST(Expr, Collate) {
+  EXPECT_EQ(Expr("a").Collate(R"("C")").ToString(), R"(a COLLATE "C")");
+}
 
 TEST(Expr, Index) { EXPECT_EQ(Expr("a")["b"].ToString(), "a[b]"); }
 
 TEST(Expr, Exp) { EXPECT_EQ((Expr("a") ^ 2).ToString(), "a ^ 2"); }
 
-TEST(Expr, Between) { EXPECT_EQ(Expr("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2"); }
+TEST(Expr, Between) {
+  EXPECT_EQ(Expr("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2");
+}
 
 TEST(Expr, Like) { EXPECT_EQ(Expr("a").Like("a%b").ToString(), "a LIKE a%b"); }
 
-TEST(Expr, In) { EXPECT_EQ(Expr("a").In(From(Table("foo")).Select("bar")).ToString(), "a IN (SELECT bar FROM foo)"); }
+TEST(Expr, In) {
+  EXPECT_EQ(Expr("a").In(From(Table("foo")).Select("bar")).ToString(),
+            "a IN (SELECT bar FROM foo)");
+}
 
 TEST(Expr, NotIn) {
-    EXPECT_EQ(Expr("a").NotIn(From(Table("foo")).Select("bar")).ToString(), "a NOT IN (SELECT bar FROM foo)");
+  EXPECT_EQ(Expr("a").NotIn(From(Table("foo")).Select("bar")).ToString(),
+            "a NOT IN (SELECT bar FROM foo)");
 }
 
 TEST(Expr, Is) {
-    EXPECT_EQ(Expr("a").IsTrue().ToString(), "a IS TRUE");
-    EXPECT_EQ(Expr("a").IsFalse().ToString(), "a IS FALSE");
-    EXPECT_EQ(Expr("a").IsNull().ToString(), "a IS NULL");
+  EXPECT_EQ(Expr("a").IsTrue().ToString(), "a IS TRUE");
+  EXPECT_EQ(Expr("a").IsFalse().ToString(), "a IS FALSE");
+  EXPECT_EQ(Expr("a").IsNull().ToString(), "a IS NULL");
 }
 
 // Example of autogenerated declarations
@@ -183,4 +202,4 @@ const TableWithColumns kTable("users", kAll);
 
 // TODO: unable to create table fields with name "table" or "all", hmm...
 
-}  // namespace users
+} // namespace users
