@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <builder.hpp>
+#include <sql_builder_pp.hpp>
 
 using namespace sql_builder_pp;
 
