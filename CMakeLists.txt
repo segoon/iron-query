@@ -14,10 +14,9 @@ target_include_directories(iron-query PUBLIC
 target_compile_features(iron-query PUBLIC cxx_std_17)
 add_library(iron-query::iron-query ALIAS iron-query)
 
-cmake_policy(SET CMP0037 OLD) # allow target name "test" despite CTest reserving it
-add_executable(test tests/test.cpp)
-target_link_libraries(test gtest_main gtest iron-query)
-gtest_discover_tests(test)
+add_executable(iron-query-gtest tests/test.cpp)
+target_link_libraries(iron-query-gtest gtest_main gtest iron-query)
+gtest_discover_tests(iron-query-gtest)
 
 install(TARGETS iron-query EXPORT iron-query-targets)
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

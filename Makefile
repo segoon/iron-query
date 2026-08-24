@@ -8,7 +8,7 @@ test: format-check
 	mkdir -p build
 	cd build && cmake ..
 	cd build && make -j12
-	cd build && ./test
+	cd build && ./iron-query-gtest
 
 .PHONY: sanitize
 sanitize:
@@ -17,7 +17,7 @@ sanitize:
 		-DCMAKE_CXX_FLAGS="$(SANITIZE_FLAGS) -fno-omit-frame-pointer" \
 		-DCMAKE_EXE_LINKER_FLAGS="$(SANITIZE_FLAGS)" ..
 	cd build-sanitize && make -j12
-	cd build-sanitize && ./test
+	cd build-sanitize && ./iron-query-gtest
 
 .PHONY: clean
 clean:
