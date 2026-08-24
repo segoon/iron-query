@@ -1,6 +1,6 @@
 # IronQuery
 
-This is a header-only SQL query builder for C++.
+This is a SQL query builder for C++.
 Note: this is NOT an ORM!
 
 Licensed under the [Apache License 2.0](LICENSE).
@@ -36,10 +36,10 @@ you probably don't needd SQL query builder.
 
 # Quick start
 
-The builder library is header-only, so you just include the header and use it:
+Include the header and link against the `iron-query` library:
 
 ```cpp
-#include <iron_query.hpp>
+#include <iron_query/iron_query.hpp>
 
 using namespace iron_query;
 

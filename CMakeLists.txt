@@ -7,11 +7,11 @@ include(GoogleTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-add_library(iron-query INTERFACE)
-target_include_directories(iron-query INTERFACE
+add_library(iron-query STATIC src/iron_query.cpp)
+target_include_directories(iron-query PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
-target_compile_features(iron-query INTERFACE cxx_std_17)
+target_compile_features(iron-query PUBLIC cxx_std_17)
 add_library(iron-query::iron-query ALIAS iron-query)
 
 cmake_policy(SET CMP0037 OLD) # allow target name "test" despite CTest reserving it

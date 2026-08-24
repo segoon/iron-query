@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <iron_query.hpp>
+#include <iron_query/iron_query.hpp>
 
 using namespace iron_query;
 

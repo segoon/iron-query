@@ -16,4 +16,4 @@ Checks: >
   -bugprone-throwing-static-initialization,
   -performance-enum-size
 WarningsAsErrors: ''
-HeaderFilterRegex: 'include/iron_query\.hpp'
+HeaderFilterRegex: 'include/iron_query/iron_query\.hpp'
