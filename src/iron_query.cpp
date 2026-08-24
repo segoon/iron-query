@@ -63,14 +63,14 @@ Expr Expr::CallRaw(const std::string &name, std::initializer_list<Expr> args) {
   return Expr(std::move(s), OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::Exists(const VirtualTable &subquery) {
-  return Expr("EXISTS " + subquery.ToStringBracketed(),
-              OperatorPrecedence::kSymbol);
+Condition Expr::Exists(const VirtualTable &subquery) {
+  return Condition("EXISTS " + subquery.ToStringBracketed(),
+                   OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::NotExists(const VirtualTable &subquery) {
-  return Expr("NOT EXISTS " + subquery.ToStringBracketed(),
-              OperatorPrecedence::kSymbol);
+Condition Expr::NotExists(const VirtualTable &subquery) {
+  return Condition("NOT EXISTS " + subquery.ToStringBracketed(),
+                   OperatorPrecedence::kSymbol);
 }
 
 Expr Expr::Count(const Expr &arg) { return CallRaw("COUNT", {arg}); }
@@ -113,110 +113,98 @@ Expr Expr::operator^(const Expr &other) const {
               OperatorPrecedence::kExp);
 }
 
-Expr Expr::Between(const Expr &a, const Expr &b) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " BETWEEN " +
-                  a.Extract(OperatorPrecedence::kBetween) + " AND " +
-                  b.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::Between(const Expr &a, const Expr &b) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " BETWEEN " +
+                       a.Extract(OperatorPrecedence::kBetween) + " AND " +
+                       b.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::NotBetween(const Expr &a, const Expr &b) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " NOT BETWEEN " +
-                  a.Extract(OperatorPrecedence::kBetween) + " AND " +
-                  b.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::NotBetween(const Expr &a, const Expr &b) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT BETWEEN " +
+                       a.Extract(OperatorPrecedence::kBetween) + " AND " +
+                       b.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::Like(const Expr &a) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " LIKE " +
-                  a.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::Like(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " LIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::NotLike(const Expr &a) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " NOT LIKE " +
-                  a.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::NotLike(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT LIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::In(const Expr &a) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " IN " +
-                  a.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::In(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " IN " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::NotIn(const Expr &a) const {
-  return Expr(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
-                  a.Extract(OperatorPrecedence::kBetween),
-              OperatorPrecedence::kBetween);
+Condition Expr::NotIn(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
 }
 
-Expr Expr::IsTrue() const {
-  return Expr(Extract(OperatorPrecedence::kIs) + " IS TRUE",
-              OperatorPrecedence::kIs);
+Condition Expr::IsTrue() const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS TRUE",
+                   OperatorPrecedence::kIs);
 }
 
-Expr Expr::IsFalse() const {
-  return Expr(Extract(OperatorPrecedence::kIs) + " IS FALSE",
-              OperatorPrecedence::kIs);
+Condition Expr::IsFalse() const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS FALSE",
+                   OperatorPrecedence::kIs);
 }
 
-Expr Expr::IsNull() const {
-  return Expr(Extract(OperatorPrecedence::kIs) + " IS NULL",
-              OperatorPrecedence::kIs);
+Condition Expr::IsNull() const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS NULL",
+                   OperatorPrecedence::kIs);
 }
 
-Expr Expr::IsNotNull() const {
-  return Expr(Extract(OperatorPrecedence::kIs) + " IS NOT NULL",
-              OperatorPrecedence::kIs);
+Condition Expr::IsNotNull() const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT NULL",
+                   OperatorPrecedence::kIs);
 }
 
-Expr Expr::operator<(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) + " < " +
-                  other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
+Condition Expr::operator<(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " < " +
+                       other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
-Expr Expr::operator<=(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) +
-                  " <= " + other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
+Condition Expr::operator<=(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) +
+                       " <= " + other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
-Expr Expr::operator>(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) + " > " +
-                  other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
+Condition Expr::operator>(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " > " +
+                       other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
-Expr Expr::operator>=(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) +
-                  " >= " + other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
+Condition Expr::operator>=(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) +
+                       " >= " + other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
-Expr Expr::operator==(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) + " = " +
-                  other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
+Condition Expr::operator==(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " = " +
+                       other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
-Expr Expr::operator!=(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kCompare) +
-                  " != " + other.Extract(OperatorPrecedence::kCompare),
-              OperatorPrecedence::kCompare);
-}
-
-Expr Expr::operator||(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kOr) + " OR " +
-                  other.Extract(OperatorPrecedence::kOr),
-              OperatorPrecedence::kOr);
-}
-
-Expr Expr::operator&&(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kAnd) + " AND " +
-                  other.Extract(OperatorPrecedence::kAnd),
-              OperatorPrecedence::kAnd);
+Condition Expr::operator!=(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) +
+                       " != " + other.Extract(OperatorPrecedence::kCompare),
+                   OperatorPrecedence::kCompare);
 }
 
 Expr Expr::operator+(const Expr &other) const {
@@ -249,11 +237,6 @@ Expr Expr::operator%(const Expr &other) const {
               OperatorPrecedence::kMul);
 }
 
-Expr Expr::operator!() const {
-  return Expr("NOT " + Extract(OperatorPrecedence::kNot),
-              OperatorPrecedence::kNot);
-}
-
 std::string Expr::Extract(OperatorPrecedence precedence) const {
   if (precedence_ >= precedence)
     return "(" + expr_ + ")";
@@ -265,10 +248,52 @@ std::string Expr::ToString() const {
 }
 
 // ---------------------------------------------------------------------------
+// Condition
+// ---------------------------------------------------------------------------
+
+Condition::Condition(std::string s, OperatorPrecedence precedence)
+    : expr_(std::move(s)), precedence_(precedence) {}
+
+Condition Condition::FromRaw(std::string s) {
+  return Condition(std::move(s), OperatorPrecedence::kSymbol);
+}
+
+Condition Condition::operator&&(const Condition &other) const {
+  return Condition(Extract(OperatorPrecedence::kAnd) + " AND " +
+                       other.Extract(OperatorPrecedence::kAnd),
+                   OperatorPrecedence::kAnd);
+}
+
+Condition Condition::operator||(const Condition &other) const {
+  return Condition(Extract(OperatorPrecedence::kOr) + " OR " +
+                       other.Extract(OperatorPrecedence::kOr),
+                   OperatorPrecedence::kOr);
+}
+
+Condition Condition::operator!() const {
+  return Condition("NOT " + Extract(OperatorPrecedence::kNot),
+                   OperatorPrecedence::kNot);
+}
+
+std::string Condition::Extract(OperatorPrecedence precedence) const {
+  if (precedence_ >= precedence)
+    return "(" + expr_ + ")";
+  return expr_;
+}
+
+std::string Condition::ToString() const {
+  return Extract(OperatorPrecedence::kExtract);
+}
+
+Condition::operator Expr() const && {
+  return Expr::FromRaw(expr_, precedence_);
+}
+
+// ---------------------------------------------------------------------------
 // CaseBuilder
 // ---------------------------------------------------------------------------
 
-CaseBuilder CaseBuilder::When(Expr cond) && {
+CaseBuilder CaseBuilder::When(Condition cond) && {
   if (has_pending_when_)
     throw std::logic_error(
         "iron_query: When() called twice without a matching Then()");
@@ -363,7 +388,7 @@ SelectExpr SelectExpr::Select(std::initializer_list<Expr> exps) && {
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::Where(Expr exp) && {
+SelectExpr SelectExpr::Where(Condition exp) && {
   where_ = exp.ToString();
   return std::move(*this);
 }
@@ -392,7 +417,7 @@ SelectExpr::GroupByRaw(std::initializer_list<std::string_view> by) && {
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::Having(Expr exp) && {
+SelectExpr SelectExpr::Having(Condition exp) && {
   having_ = exp.ToString();
   return std::move(*this);
 }
@@ -484,7 +509,7 @@ SelectExpr From(const Table &tbl) { return SelectExpr(tbl); }
 
 DeleteFrom::DeleteFrom(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
 
-DeleteFrom DeleteFrom::Where(Expr exp) && {
+DeleteFrom DeleteFrom::Where(Condition exp) && {
   where_ = exp.ToString();
   return std::move(*this);
 }
@@ -546,7 +571,7 @@ Update Update::Set(const Expr &column, const Expr &value) && {
   return std::move(*this);
 }
 
-Update Update::Where(Expr exp) && {
+Update Update::Where(Condition exp) && {
   where_ = exp.ToString();
   return std::move(*this);
 }
@@ -579,7 +604,7 @@ Join::Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind)
     : a_(a.ToStringBracketed()), b_(b.ToStringBracketed()),
       kind_(kind.ToString()) {}
 
-Join Join::On(Expr exp) && {
+Join Join::On(Condition exp) && {
   on_ = exp.ToString();
   return std::move(*this);
 }
@@ -645,23 +670,27 @@ WithBuilder WithRaw(std::string name, const VirtualTable &query) {
 
 Column::operator Expr() const { return Expr::FromRaw(name); }
 
-Expr Column::operator<(const Expr &other) const { return Expr(*this) < other; }
+Condition Column::operator<(const Expr &other) const {
+  return Expr(*this) < other;
+}
 
-Expr Column::operator<=(const Expr &other) const {
+Condition Column::operator<=(const Expr &other) const {
   return Expr(*this) <= other;
 }
 
-Expr Column::operator>(const Expr &other) const { return Expr(*this) > other; }
+Condition Column::operator>(const Expr &other) const {
+  return Expr(*this) > other;
+}
 
-Expr Column::operator>=(const Expr &other) const {
+Condition Column::operator>=(const Expr &other) const {
   return Expr(*this) >= other;
 }
 
-Expr Column::operator==(const Expr &other) const {
+Condition Column::operator==(const Expr &other) const {
   return Expr(*this) == other;
 }
 
-Expr Column::operator!=(const Expr &other) const {
+Condition Column::operator!=(const Expr &other) const {
   return Expr(*this) != other;
 }
 

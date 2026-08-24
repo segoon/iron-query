@@ -34,6 +34,7 @@ enum class OperatorPrecedence {
 };
 
 class VirtualTable;
+class Condition;
 
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
@@ -70,10 +71,10 @@ public:
                       std::initializer_list<Expr> args);
 
   /// @brief EXISTS (subquery).
-  static Expr Exists(const VirtualTable &subquery);
+  static Condition Exists(const VirtualTable &subquery);
 
   /// @brief NOT EXISTS (subquery).
-  static Expr NotExists(const VirtualTable &subquery);
+  static Condition NotExists(const VirtualTable &subquery);
 
   /// @brief COUNT(arg).
   static Expr Count(const Expr &arg);
@@ -113,58 +114,52 @@ public:
   Expr operator^(const Expr &other) const;
 
   /// @brief `this BETWEEN a AND b`.
-  Expr Between(const Expr &a, const Expr &b) const;
+  Condition Between(const Expr &a, const Expr &b) const;
 
   /// @brief `this NOT BETWEEN a AND b`.
-  Expr NotBetween(const Expr &a, const Expr &b) const;
+  Condition NotBetween(const Expr &a, const Expr &b) const;
 
   /// @brief `this LIKE a`.
-  Expr Like(const Expr &a) const;
+  Condition Like(const Expr &a) const;
 
   /// @brief `this NOT LIKE a`.
-  Expr NotLike(const Expr &a) const;
+  Condition NotLike(const Expr &a) const;
 
   /// @brief `this IN a`.
-  Expr In(const Expr &a) const;
+  Condition In(const Expr &a) const;
 
   /// @brief `this NOT IN a`.
-  Expr NotIn(const Expr &a) const;
+  Condition NotIn(const Expr &a) const;
 
   /// @brief `this IS TRUE`.
-  Expr IsTrue() const;
+  Condition IsTrue() const;
 
   /// @brief `this IS FALSE`.
-  Expr IsFalse() const;
+  Condition IsFalse() const;
 
   /// @brief `this IS NULL`.
-  Expr IsNull() const;
+  Condition IsNull() const;
 
   /// @brief `this IS NOT NULL`.
-  Expr IsNotNull() const;
+  Condition IsNotNull() const;
 
   /// @brief `this < other`.
-  Expr operator<(const Expr &other) const;
+  Condition operator<(const Expr &other) const;
 
   /// @brief `this <= other`.
-  Expr operator<=(const Expr &other) const;
+  Condition operator<=(const Expr &other) const;
 
   /// @brief `this > other`.
-  Expr operator>(const Expr &other) const;
+  Condition operator>(const Expr &other) const;
 
   /// @brief `this >= other`.
-  Expr operator>=(const Expr &other) const;
+  Condition operator>=(const Expr &other) const;
 
   /// @brief `this = other`.
-  Expr operator==(const Expr &other) const;
+  Condition operator==(const Expr &other) const;
 
   /// @brief `this != other`.
-  Expr operator!=(const Expr &other) const;
-
-  /// @brief `this OR other`.
-  Expr operator||(const Expr &other) const;
-
-  /// @brief `this AND other`.
-  Expr operator&&(const Expr &other) const;
+  Condition operator!=(const Expr &other) const;
 
   /// @brief `this + other`.
   Expr operator+(const Expr &other) const;
@@ -181,9 +176,6 @@ public:
   /// @brief `this % other`.
   Expr operator%(const Expr &other) const;
 
-  /// @brief `NOT this`.
-  Expr operator!() const;
-
   /// @brief Renders the expression as SQL text, parenthesizing it if its
   /// top-level operator does not bind at least as tightly as `precedence`.
   /// @param precedence The precedence context this expression is being
@@ -196,8 +188,57 @@ public:
   std::string ToString() const;
 
 private:
+  friend class Condition;
+
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
+
+  OperatorPrecedence precedence_;
+  std::string expr_;
+};
+
+/// @brief A boolean-valued SQL predicate, e.g. the result of a comparison,
+/// `LIKE`/`IN`/`BETWEEN`/`IS [NOT] NULL`, `EXISTS`, or a logical combination
+/// of these. Kept distinct from @ref Expr so that predicate-only positions
+/// (`WHERE`, `HAVING`, `ON`, `WHEN`) cannot silently accept a non-boolean
+/// expression, e.g. `Where(age)` or `Where(age + 1)`.
+///
+/// A boolean-valued column or raw expression can be turned into a Condition
+/// explicitly via @ref Expr::IsTrue / @ref Expr::IsFalse / @ref
+/// Expr::IsNotNull, or via @ref Condition::FromRaw for a trusted raw
+/// fragment.
+class [[nodiscard]] Condition final {
+public:
+  /// @brief `this AND other`.
+  Condition operator&&(const Condition &other) const;
+
+  /// @brief `this OR other`.
+  Condition operator||(const Condition &other) const;
+
+  /// @brief `NOT this`.
+  Condition operator!() const;
+
+  /// @brief Wraps a trusted, developer-written SQL predicate verbatim. Never
+  /// pass untrusted/dynamic data here.
+  static Condition FromRaw(std::string s);
+
+  /// @brief Renders the condition as SQL text, parenthesizing it if its
+  /// top-level operator does not bind at least as tightly as `precedence`.
+  std::string Extract(OperatorPrecedence precedence) const;
+
+  /// @brief Renders the condition as a standalone, unparenthesized SQL
+  /// fragment.
+  std::string ToString() const;
+
+  /// @brief Converts this predicate into a value expression, e.g. for
+  /// embedding it where a boolean-valued Expr is expected. Only available on
+  /// rvalues.
+  operator Expr() const &&;
+
+private:
+  friend class Expr;
+
+  Condition(std::string s, OperatorPrecedence precedence);
 
   OperatorPrecedence precedence_;
   std::string expr_;
@@ -212,7 +253,7 @@ public:
   /// @brief Begins a new `WHEN cond` branch.
   /// @throws std::logic_error if called twice in a row without a matching
   /// @ref Then in between.
-  CaseBuilder When(Expr cond) &&;
+  CaseBuilder When(Condition cond) &&;
 
   /// @brief Completes the pending branch as `WHEN cond THEN result`.
   /// @throws std::logic_error if not preceded by @ref When.
@@ -310,7 +351,7 @@ public:
   SelectExpr Select(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the WHERE clause.
-  SelectExpr Where(Expr exp) &&;
+  SelectExpr Where(Condition exp) &&;
 
   /// @brief Sets the ORDER BY clause to a single trusted, developer-written
   /// expression, inserted verbatim. Never pass untrusted/dynamic data here.
@@ -331,7 +372,7 @@ public:
   SelectExpr GroupByRaw(std::initializer_list<std::string_view> by) &&;
 
   /// @brief Sets the HAVING clause.
-  SelectExpr Having(Expr exp) &&;
+  SelectExpr Having(Condition exp) &&;
 
   /// @brief Sets the LIMIT clause.
   SelectExpr Limit(int limit) &&;
@@ -379,7 +420,7 @@ public:
   DeleteFrom(const Table &tbl);
 
   /// @brief Sets the WHERE clause.
-  DeleteFrom Where(Expr exp) &&;
+  DeleteFrom Where(Condition exp) &&;
 
   /// @throws std::logic_error if the FROM clause was not set.
   std::string ToString() const override;
@@ -421,7 +462,7 @@ public:
   Update Set(const Expr &column, const Expr &value) &&;
 
   /// @brief Sets the WHERE clause.
-  Update Where(Expr exp) &&;
+  Update Where(Condition exp) &&;
 
   /// @throws std::logic_error if no SET assignment was added.
   std::string ToString() const;
@@ -466,7 +507,7 @@ public:
   Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind);
 
   /// @brief Sets the ON clause.
-  Join On(Expr exp) &&;
+  Join On(Condition exp) &&;
 
   std::string ToString() const override;
 
@@ -565,17 +606,17 @@ struct [[nodiscard]] Column final {
   operator Expr() const;
 
   /// @brief `this < other`.
-  Expr operator<(const Expr &other) const;
+  Condition operator<(const Expr &other) const;
   /// @brief `this <= other`.
-  Expr operator<=(const Expr &other) const;
+  Condition operator<=(const Expr &other) const;
   /// @brief `this > other`.
-  Expr operator>(const Expr &other) const;
+  Condition operator>(const Expr &other) const;
   /// @brief `this >= other`.
-  Expr operator>=(const Expr &other) const;
+  Condition operator>=(const Expr &other) const;
   /// @brief `this = other`.
-  Expr operator==(const Expr &other) const;
+  Condition operator==(const Expr &other) const;
   /// @brief `this != other`.
-  Expr operator!=(const Expr &other) const;
+  Condition operator!=(const Expr &other) const;
 };
 
 /// @brief Table with associated columns. Usually not created by hands.

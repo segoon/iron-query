@@ -47,16 +47,17 @@ using namespace iron_query;
 Table users = Table::FromRaw("users");
 TableAlias left = TableAlias::FromRaw("left");
 TableAlias right = TableAlias::FromRaw("right");
-Column name("name", "TEXT");
-Column age("age", "BIGINT");
+Column name{"name", "TEXT"};
+Column age{"age", "BIGINT"};
 
 std::string query = Join(
-    From(users.As(left)).Select(Expr::FromRaw("*")),
-    From(users.As(right)).Select({name, age}),
+    From(users.As("left")).Select(Expr::FromRaw("*")),
+    From(users.As("right")).Select({name, age}),
     Inner()
-).On(left.Dot("second_name") == right.Dot(name)).ToString();
+).On(Expr::FromRaw(left.Dot("second_name")) == Expr::FromRaw(right.Dot(name)))
+    .ToString();
 
-query = DeleteFrom(table).Where(age < 10).ToString();
+query = DeleteFrom(users).Where(age < 10).ToString();
 ```
 
 
@@ -65,10 +66,16 @@ query = DeleteFrom(table).Where(age < 10).ToString();
 `Expr::FromRaw(std::string)` treats its argument as a **trusted, raw SQL fragment** written
 by the developer — it is inserted into the query verbatim, unescaped. The same applies to
 every other `FromRaw`/`*Raw`-named entry point in the API (`Table::FromRaw`,
-`TableAlias::FromRaw`, `TableWithColumns::FromRaw`, `Expr::CastRaw`, `Expr::CollateRaw`,
-`Expr::CallRaw`, `SelectExpr::OrderByRaw`/`GroupByRaw`, `WithRaw`). Never pass
-untrusted/user-controlled data to any of these, or you will have a SQL injection
+`TableAlias::FromRaw`, `TableWithColumns::FromRaw`, `Condition::FromRaw`, `Expr::CastRaw`,
+`Expr::CollateRaw`, `Expr::CallRaw`, `SelectExpr::OrderByRaw`/`GroupByRaw`, `WithRaw`). Never
+pass untrusted/user-controlled data to any of these, or you will have a SQL injection
 vulnerability.
+
+`WHERE`/`HAVING`/`ON`/`WHEN` all take a `Condition`, not a plain `Expr`, so a non-boolean
+expression (`Where(age)`, `Where(age + 1)`) won't compile — this is a syntax-role check,
+not a value-type check (the library still doesn't know or care whether `age` is an int or
+text column). A boolean-valued column or expression needs to be turned into a `Condition`
+explicitly, e.g. `Where(is_active.IsTrue())`.
 
 If you need to embed a value or an identifier that isn't a fixed string literal in your code
 (a user-supplied search term, a dynamically chosen sort column, etc.), use the escaping

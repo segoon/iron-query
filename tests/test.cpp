@@ -31,7 +31,7 @@ TEST(Select, Where) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("*"))
-                .Where(Expr::FromRaw("a = b"))
+                .Where(Condition::FromRaw("a = b"))
                 .ToString(),
             "SELECT * FROM test WHERE a = b");
 }
@@ -58,7 +58,7 @@ TEST(Select, Full) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a, b"))
-                .Where(Expr::FromRaw("a = b"))
+                .Where(Condition::FromRaw("a = b"))
                 .OrderByRaw("name")
                 .ToString(),
             "SELECT a, b FROM test WHERE a = b ORDER BY name");
@@ -95,9 +95,9 @@ TEST(Select, AllClauses) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a"))
-                .Where(Expr::FromRaw("a > 0"))
+                .Where(Condition::FromRaw("a > 0"))
                 .GroupByRaw("a")
-                .Having(Expr::FromRaw("COUNT(*) > 1"))
+                .Having(Condition::FromRaw("COUNT(*) > 1"))
                 .OrderByRaw("a")
                 .Limit(10)
                 .Offset(5)
@@ -140,7 +140,7 @@ TEST(SelectFormatted, Where) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("*"))
-                .Where(Expr::FromRaw("a = b"))
+                .Where(Condition::FromRaw("a = b"))
                 .ToStringFormatted(),
             "SELECT\n"
             "    *\n"
@@ -218,7 +218,7 @@ TEST(Delete, From) {
 TEST(Delete, Where) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(DeleteFrom(tbl).Where(Expr::FromRaw("a = 1")).ToString(),
+  EXPECT_EQ(DeleteFrom(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
             "DELETE FROM test WHERE a = 1");
 }
 
@@ -240,9 +240,10 @@ TEST(Join, On) {
   Table tbl1 = Table::FromRaw("foo");
   Table tbl2 = Table::FromRaw("bar");
 
-  EXPECT_EQ(
-      Join(tbl1, tbl2, Cross()).On(Expr::FromRaw("foo.a = bar.b")).ToString(),
-      "foo CROSS JOIN bar ON foo.a = bar.b");
+  EXPECT_EQ(Join(tbl1, tbl2, Cross())
+                .On(Condition::FromRaw("foo.a = bar.b"))
+                .ToString(),
+            "foo CROSS JOIN bar ON foo.a = bar.b");
 }
 
 TEST(Join, LeftOuter) {
@@ -351,7 +352,7 @@ TEST(Join, SelectSelect) {
 
   EXPECT_EQ(Join(From(tbl).Select(Expr::FromRaw("a")),
                  From(tbl).Select(Expr::FromRaw("b")), Cross())
-                .On(Expr::FromRaw("a = b"))
+                .On(Condition::FromRaw("a = b"))
                 .ToString(),
             "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
 }
@@ -399,7 +400,7 @@ TEST(Update, MultiSet) {
 
 TEST(Update, MissingSetThrows) {
   Table tbl = Table::FromRaw("foo");
-  EXPECT_THROW(Update(tbl).Where(Expr::FromRaw("a = 1")).ToString(),
+  EXPECT_THROW(Update(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
                std::logic_error);
 }
 
@@ -450,10 +451,12 @@ TEST(Expr, symbol) {
 TEST(Expr, Logical) {
   EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == Expr::FromRaw("age"))).ToString(),
             "1 < 2 AND 2 = age");
-  EXPECT_EQ(((Expr::FromRaw("x") && Expr::FromRaw("y")) || Expr::FromRaw("z"))
+  EXPECT_EQ(((Condition::FromRaw("x") && Condition::FromRaw("y")) ||
+             Condition::FromRaw("z"))
                 .ToString(),
             "x AND y OR z");
-  EXPECT_EQ(((Expr::FromRaw("x") || Expr::FromRaw("y")) && Expr::FromRaw("z"))
+  EXPECT_EQ(((Condition::FromRaw("x") || Condition::FromRaw("y")) &&
+             Condition::FromRaw("z"))
                 .ToString(),
             "(x OR y) AND z");
 }
@@ -528,6 +531,27 @@ TEST(Expr, Is) {
   EXPECT_EQ(Expr::FromRaw("a").IsFalse().ToString(), "a IS FALSE");
   EXPECT_EQ(Expr::FromRaw("a").IsNull().ToString(), "a IS NULL");
   EXPECT_EQ(Expr::FromRaw("a").IsNotNull().ToString(), "a IS NOT NULL");
+}
+
+TEST(Condition, LogicalAndEmbedding) {
+  // Conditions compose without going back through Expr.
+  EXPECT_EQ(
+      (Expr::FromRaw("a").IsTrue() && Expr::FromRaw("b").IsNull()).ToString(),
+      "a IS TRUE AND b IS NULL");
+
+  // A bare boolean column is not implicitly a Condition; the idiomatic
+  // escape hatch is IsTrue()/IsFalse()/IsNotNull().
+  Table tbl = Table::FromRaw("test");
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .Where(Expr::FromRaw("is_active").IsTrue())
+                .ToString(),
+            "SELECT * FROM test WHERE is_active IS TRUE");
+
+  // A Condition can still be embedded as a value expression, e.g. in a
+  // SELECT list.
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("a") == 1).ToString(),
+            "SELECT a = 1 FROM test");
 }
 
 TEST(Expr, Compare) {
