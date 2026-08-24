@@ -7,7 +7,13 @@ include(GoogleTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# Warnings are errors: a silently-reordered member initialiser once shipped
+# as a real bug here.
+set(IRON_QUERY_WARNINGS
+  $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wall;-Wextra;-Werror>)
+
 add_library(iron-query STATIC src/iron_query.cpp)
+target_compile_options(iron-query PRIVATE ${IRON_QUERY_WARNINGS})
 target_include_directories(iron-query PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -15,6 +21,10 @@ target_compile_features(iron-query PUBLIC cxx_std_17)
 add_library(iron-query::iron-query ALIAS iron-query)
 
 add_executable(iron-query-gtest tests/test.cpp)
+# EXPECT_THROW discards the builder it evaluates, which is the whole point of
+# the macro, but clang reports that against our [[nodiscard]] types.
+target_compile_options(iron-query-gtest PRIVATE ${IRON_QUERY_WARNINGS}
+  $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-unused-result>)
 target_link_libraries(iron-query-gtest gtest_main gtest iron-query)
 gtest_discover_tests(iron-query-gtest)
 

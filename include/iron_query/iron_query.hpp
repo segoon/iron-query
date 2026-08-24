@@ -192,8 +192,8 @@ private:
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
 
-  OperatorPrecedence precedence_;
   std::string expr_;
+  OperatorPrecedence precedence_;
 };
 
 /// @brief A boolean-valued SQL predicate, e.g. the result of a comparison,
@@ -239,8 +239,8 @@ private:
 
   Condition(std::string s, OperatorPrecedence precedence);
 
-  OperatorPrecedence precedence_;
   std::string expr_;
+  OperatorPrecedence precedence_;
 };
 
 /// @brief Transitional representation for CASE WHEN ... END
@@ -326,8 +326,9 @@ public:
   /// bracketing, since a bare table name never needs it.
   virtual std::string ToStringBracketed() const;
 
-  /// @brief Aliases this table value as `(this) AS name`, usable as a FROM
-  /// source.
+  /// @brief Aliases this table value as `this AS name`, usable as a FROM
+  /// source. `name` must be a valid (optionally dotted) SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
   Table As(std::string_view name) const;
 
   /// @brief Converts this table value into a subquery expression, e.g. for
@@ -361,10 +362,12 @@ public:
   /// @brief Starts a `SELECT ... FROM tbl` query.
   SelectExpr(const Table &tbl);
 
-  /// @brief Sets the SELECT list to a single expression.
+  /// @brief Sets the SELECT list to a single expression, replacing any
+  /// previously set list.
   SelectExpr Select(Expr exp) &&;
 
-  /// @brief Sets the SELECT list to a comma-separated list of expressions.
+  /// @brief Sets the SELECT list to a comma-separated list of expressions,
+  /// replacing any previously set list.
   SelectExpr Select(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the WHERE clause.
@@ -448,20 +451,26 @@ public:
   /// @brief Starts an `INSERT INTO tbl` query.
   InsertInto(const Table &tbl);
 
-  /// @brief Sets the list of columns to insert into.
+  /// @brief Sets the list of columns to insert into, replacing any previously
+  /// set list.
+  /// @throws std::logic_error if the count does not match an already-set
+  /// @ref Values list.
   InsertInto Columns(std::initializer_list<Expr> cols) &&;
 
   /// @brief Sets the list of values to insert, matching @ref Columns by
-  /// position.
+  /// position and replacing any previously set list.
+  /// @throws std::logic_error if the count does not match an already-set
+  /// @ref Columns list.
   InsertInto Values(std::initializer_list<Expr> vals) &&;
 
-  /// @throws std::logic_error if no columns or no values were set.
+  /// @throws std::logic_error if no columns or no values were set, or if the
+  /// two lists have different lengths.
   std::string ToString() const;
 
 private:
   std::string into_;
-  std::string columns_;
-  std::string values_;
+  std::vector<std::string> columns_;
+  std::vector<std::string> values_;
 };
 
 /// @brief Transitional representation for UPDATE query
@@ -540,8 +549,8 @@ public:
   std::string ToString() const override;
 
 private:
-  std::string kind_;
   std::string a_, b_;
+  std::string kind_;
   std::string on_;
 };
 
@@ -577,8 +586,8 @@ public:
   std::string ToString() const override;
 
 private:
-  std::string kind_;
   std::string a_, b_;
+  std::string kind_;
 };
 
 /// @brief Finalized WITH ... query, usable anywhere a VirtualTable is

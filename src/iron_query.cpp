@@ -140,7 +140,8 @@ Expr Expr::Collate(const Collation &collation) const {
 
 Expr Expr::operator[](const Expr &other) const {
   return Expr(Extract(OperatorPrecedence::kIndex) + "[" + other.ToString() +
-              "]");
+                  "]",
+              OperatorPrecedence::kIndex);
 }
 
 Expr Expr::operator^(const Expr &other) const {
@@ -391,8 +392,11 @@ std::string VirtualTable::ToStringBracketed() const {
 }
 
 Table VirtualTable::As(std::string_view name) const {
-  return Table::FromRaw("(" + ToStringBracketed() + " AS " + std::string(name) +
-                        ")");
+  ValidateIdentifier(name);
+  // No outer brackets: PostgreSQL's table_ref grammar attaches the alias
+  // directly to the item, and only ever allows parentheses around a bare
+  // joined_table -- which is exactly what ToStringBracketed() produces here.
+  return Table::FromRaw(ToStringBracketed() + " AS " + std::string(name));
 }
 
 VirtualTable::operator Expr() const && {
@@ -414,16 +418,38 @@ std::string Table::ToStringBracketed() const {
 // SelectExpr
 // ---------------------------------------------------------------------------
 
+namespace {
+
+std::string RenderTerm(const Expr &exp) { return exp.ToString(); }
+
+std::string RenderTerm(const OrderByTerm &term) {
+  std::string s = term.expr.ToString();
+  if (term.direction == SortDirection::kDescending)
+    s += " DESC";
+  return s;
+}
+
+// Gives every comma-separated clause a single assignment site, so its
+// one-term and many-term setters cannot disagree on replace-vs-append.
+template <typename T>
+std::vector<std::string> RenderAll(std::initializer_list<T> terms) {
+  std::vector<std::string> rendered;
+  rendered.reserve(terms.size());
+  for (const auto &term : terms)
+    rendered.push_back(RenderTerm(term));
+  return rendered;
+}
+
+} // namespace
+
 SelectExpr::SelectExpr(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
 
 SelectExpr SelectExpr::Select(Expr exp) && {
-  select_ = {exp.ToString()};
-  return std::move(*this);
+  return std::move(*this).Select({std::move(exp)});
 }
 
 SelectExpr SelectExpr::Select(std::initializer_list<Expr> exps) && {
-  for (const auto &exp : exps)
-    select_.push_back(exp.ToString());
+  select_ = RenderAll(exps);
   return std::move(*this);
 }
 
@@ -432,36 +458,21 @@ SelectExpr SelectExpr::Where(Condition exp) && {
   return std::move(*this);
 }
 
-namespace {
-
-std::string OrderByTermToString(const OrderByTerm &term) {
-  std::string s = term.expr.ToString();
-  if (term.direction == SortDirection::kDescending)
-    s += " DESC";
-  return s;
-}
-
-} // namespace
-
 SelectExpr SelectExpr::OrderBy(OrderByTerm term) && {
-  order_by_ = {OrderByTermToString(term)};
-  return std::move(*this);
+  return std::move(*this).OrderBy({std::move(term)});
 }
 
 SelectExpr SelectExpr::OrderBy(std::initializer_list<OrderByTerm> terms) && {
-  for (const auto &term : terms)
-    order_by_.push_back(OrderByTermToString(term));
+  order_by_ = RenderAll(terms);
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::GroupBy(Expr exp) && {
-  group_by_ = {exp.ToString()};
-  return std::move(*this);
+  return std::move(*this).GroupBy({std::move(exp)});
 }
 
 SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
-  for (const auto &exp : exps)
-    group_by_.push_back(exp.ToString());
+  group_by_ = RenderAll(exps);
   return std::move(*this);
 }
 
@@ -578,21 +589,31 @@ std::string DeleteFrom::ToString() const {
 
 InsertInto::InsertInto(const Table &tbl) : into_(tbl.ToStringBracketed()) {}
 
+namespace {
+
+// Both lists are known only once each setter has run, so the check has to be
+// repeated rather than done once at the end.
+void EnsureSameArity(const std::vector<std::string> &columns,
+                     const std::vector<std::string> &values) {
+  if (columns.empty() || values.empty())
+    return;
+  if (columns.size() != values.size())
+    throw std::logic_error("iron_query: " + std::to_string(columns.size()) +
+                           " columns but " + std::to_string(values.size()) +
+                           " values");
+}
+
+} // namespace
+
 InsertInto InsertInto::Columns(std::initializer_list<Expr> cols) && {
-  for (const auto &col : cols) {
-    if (!columns_.empty())
-      columns_ += ", ";
-    columns_ += col.ToString();
-  }
+  columns_ = RenderAll(cols);
+  EnsureSameArity(columns_, values_);
   return std::move(*this);
 }
 
 InsertInto InsertInto::Values(std::initializer_list<Expr> vals) && {
-  for (const auto &val : vals) {
-    if (!values_.empty())
-      values_ += ", ";
-    values_ += val.ToString();
-  }
+  values_ = RenderAll(vals);
+  EnsureSameArity(columns_, values_);
   return std::move(*this);
 }
 
@@ -601,9 +622,10 @@ std::string InsertInto::ToString() const {
     throw std::logic_error("iron_query: no columns to insert into");
   if (values_.empty())
     throw std::logic_error("iron_query: no values to insert");
+  EnsureSameArity(columns_, values_);
 
-  return "INSERT INTO " + into_ + " (" + columns_ + ") VALUES (" + values_ +
-         ")";
+  return "INSERT INTO " + into_ + " (" + JoinCsv(columns_) + ") VALUES (" +
+         JoinCsv(values_) + ")";
 }
 
 // ---------------------------------------------------------------------------

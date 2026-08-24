@@ -26,6 +26,20 @@ TEST(Select, Multi) {
       "SELECT a, b FROM test");
 }
 
+TEST(Select, ClauseListsReplacePreviousLists) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .Select({Expr::FromRaw("a")})
+                .Select({Expr::FromRaw("b")})
+                .GroupBy({Expr::FromRaw("a")})
+                .GroupBy({Expr::FromRaw("b")})
+                .OrderBy({Expr::FromRaw("a")})
+                .OrderBy({Expr::FromRaw("b")})
+                .ToString(),
+            "SELECT b FROM test GROUP BY b ORDER BY b");
+}
+
 TEST(Select, Where) {
   Table tbl = Table::FromRaw("test");
 
@@ -389,6 +403,35 @@ TEST(Join, SelectSelect) {
             "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
 }
 
+// PostgreSQL attaches a table alias directly to the FROM item; parentheses are
+// only ever allowed around a bare joined_table.
+class AliasTest : public ::testing::Test {
+protected:
+  const Table foo = Table::FromRaw("foo");
+  const Table bar = Table::FromRaw("bar");
+};
+
+TEST_F(AliasTest, TableIsNotParenthesized) {
+  EXPECT_EQ(foo.As("t").ToString(), "foo AS t");
+  EXPECT_EQ(From(foo.As("t")).Select(Expr::FromRaw("*")).ToString(),
+            "SELECT * FROM foo AS t");
+}
+
+TEST_F(AliasTest, SubqueryKeepsExactlyOnePairOfParens) {
+  EXPECT_EQ(From(foo).Select(Expr::FromRaw("a")).As("s").ToString(),
+            "(SELECT a FROM foo) AS s");
+}
+
+TEST_F(AliasTest, JoinIsParenthesized) {
+  EXPECT_EQ(Join(foo, bar, Inner()).As("j").ToString(),
+            "(foo INNER JOIN bar) AS j");
+}
+
+TEST_F(AliasTest, InvalidNameThrows) {
+  EXPECT_THROW(foo.As("not an identifier"), std::invalid_argument);
+  EXPECT_THROW(foo.As(""), std::invalid_argument);
+}
+
 TEST(Insert, Basic) {
   Table tbl = Table::FromRaw("foo");
 
@@ -397,6 +440,30 @@ TEST(Insert, Basic) {
                 .Values({1, 2})
                 .ToString(),
             "INSERT INTO foo (a, b) VALUES (1, 2)");
+}
+
+TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Columns({Expr::FromRaw("b")})
+                .Values({1})
+                .Values({2})
+                .ToString(),
+            "INSERT INTO foo (b) VALUES (2)");
+}
+
+TEST(Insert, ArityMismatchThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(InsertInto(tbl)
+                   .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                   .Values({1}),
+               std::logic_error);
+  EXPECT_THROW(InsertInto(tbl).Values({1}).Columns(
+                   {Expr::FromRaw("a"), Expr::FromRaw("b")}),
+               std::logic_error);
 }
 
 TEST(Insert, MissingColumnsThrows) {
@@ -451,7 +518,7 @@ TEST(Column, As) {
 
   auto bar = "bar";
   EXPECT_EQ(From(tbl.As(bar)).Select(Expr::FromRaw(bar).Dot(name)).ToString(),
-            "SELECT bar.name FROM (foo AS bar)");
+            "SELECT bar.name FROM foo AS bar");
 }
 
 TEST(Column, Compare) {
@@ -534,6 +601,16 @@ TEST(Expr, Collate) {
 
 TEST(Expr, Index) {
   EXPECT_EQ(Expr::FromRaw("a")[Expr::FromRaw("b")].ToString(), "a[b]");
+}
+
+TEST(Expr, IndexPrecedence) {
+  // Subscripting binds looser than ".", so the subscript needs bracketing
+  // once it is embedded into a tighter context.
+  EXPECT_EQ(
+      Expr::FromRaw("a")[Expr::FromRaw("b")].Dot(Expr::FromRaw("c")).ToString(),
+      "(a[b]).c");
+  EXPECT_EQ((Expr::FromRaw("a")[Expr::FromRaw("b")] + 1).ToString(),
+            "a[b] + 1");
 }
 
 TEST(Expr, Exp) { EXPECT_EQ((Expr::FromRaw("a") ^ 2).ToString(), "a ^ 2"); }

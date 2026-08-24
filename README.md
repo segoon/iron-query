@@ -71,7 +71,7 @@ Never pass untrusted/user-controlled data to any of these, or you will have a SQ
 vulnerability.
 
 A few other entry points take identifier-like arguments (`Expr::Call`'s function name,
-`With`'s CTE name, `TableAlias::From`'s alias) and validate them as a plain or
+`With`'s CTE name, `TableAlias::From`'s and `VirtualTable::As`'s alias) and validate them as a plain or
 dot-qualified SQL identifier, throwing `std::invalid_argument` otherwise — these are safer
 to feed with dynamic input than the raw fragments above, though `Expr::Ident` is still the
 right choice for column/table names that need proper quoting.
