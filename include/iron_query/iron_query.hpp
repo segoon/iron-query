@@ -4,6 +4,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace iron_query {
@@ -36,12 +38,53 @@ enum class OperatorPrecedence {
 class VirtualTable;
 class Condition;
 class Collation;
+class SelectItem;
+
+namespace detail {
+
+/// @brief Integer types that map onto a SQL integer literal. `bool` and the
+/// character types are excluded: they have their own SQL spelling (`TRUE` /
+/// a quoted literal), so rendering them as a number would be a silent
+/// mistranslation.
+template <typename T>
+inline constexpr bool kIsSqlInteger =
+    std::is_integral_v<T> && !std::is_same_v<std::remove_cv_t<T>, bool> &&
+    !std::is_same_v<std::remove_cv_t<T>, char> &&
+    !std::is_same_v<std::remove_cv_t<T>, signed char> &&
+    !std::is_same_v<std::remove_cv_t<T>, unsigned char> &&
+    !std::is_same_v<std::remove_cv_t<T>, wchar_t> &&
+    !std::is_same_v<std::remove_cv_t<T>, char16_t> &&
+    !std::is_same_v<std::remove_cv_t<T>, char32_t>;
+
+} // namespace detail
 
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
 public:
-  /// @brief Wraps an integer literal.
-  Expr(int i);
+  /// @brief Wraps an integer literal of any width and signedness.
+  template <typename T, std::enable_if_t<detail::kIsSqlInteger<T>, int> = 0>
+  Expr(T value)
+      : Expr(FromInteger(
+            static_cast<std::conditional_t<std::is_signed_v<T>, long long,
+                                           unsigned long long>>(value))) {}
+
+  /// @brief Wraps a floating-point literal, rendered with enough digits to
+  /// round-trip back to the same value.
+  /// @throws std::invalid_argument if `value` is NaN or infinite: SQL spells
+  /// those as typed literals (`'NaN'::float8`), so use @ref FromRaw instead.
+  template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+  Expr(T value) : Expr(FromDouble(static_cast<double>(value))) {}
+
+  /// @brief Deleted: a bool would render as a number. Use @ref Bool.
+  Expr(bool) = delete;
+
+  /// @brief Deleted: a character would render as its numeric code. Use @ref
+  /// Literal for a one-character string.
+  Expr(char) = delete;
+
+  /// @brief Deleted: a string literal would decay to `bool`. Use @ref Literal
+  /// for a value or @ref FromRaw for a trusted SQL fragment.
+  Expr(const char *) = delete;
 
   /// @brief Wraps a trusted, developer-written SQL fragment verbatim. Never
   /// pass untrusted/dynamic data here — use @ref Literal or @ref Ident
@@ -64,6 +107,13 @@ public:
   /// Expr(string) whenever a table/column name is not a trusted,
   /// developer-written literal.
   static Expr Ident(const std::string &name);
+
+  /// @brief The SQL NULL literal. Note that comparing with it is never true:
+  /// use @ref IsNull / @ref IsNotNull to test for it.
+  static Expr Null();
+
+  /// @brief The SQL boolean literal `TRUE` or `FALSE`.
+  static Expr Bool(bool value);
 
   /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
   /// {a, b}) -> "COALESCE(a, b)". `name` must be a valid (optionally dotted,
@@ -124,11 +174,33 @@ public:
   /// @brief `this NOT LIKE a`.
   Condition NotLike(const Expr &a) const;
 
-  /// @brief `this IN a`.
-  Condition In(const Expr &a) const;
+  /// @brief `this IN (a, b, c)`.
+  /// @throws std::invalid_argument if `values` is empty: SQL has no empty
+  /// `IN ()` list.
+  Condition In(std::initializer_list<Expr> values) const;
 
-  /// @brief `this NOT IN a`.
-  Condition NotIn(const Expr &a) const;
+  /// @brief `this IN (subquery)`.
+  Condition In(const VirtualTable &subquery) const;
+
+  /// @brief `this NOT IN (a, b, c)`.
+  /// @throws std::invalid_argument if `values` is empty.
+  Condition NotIn(std::initializer_list<Expr> values) const;
+
+  /// @brief `this NOT IN (subquery)`.
+  Condition NotIn(const VirtualTable &subquery) const;
+
+  /// @brief `this = ANY (array)`. The idiomatic way to test membership in a
+  /// list that arrives as a single bind parameter, e.g. `col.EqAny(_1)`.
+  Condition EqAny(const Expr &array) const;
+
+  /// @brief `this = ANY (subquery)`.
+  Condition EqAny(const VirtualTable &subquery) const;
+
+  /// @brief `this <> ALL (array)`, the negation of @ref EqAny.
+  Condition NeAll(const Expr &array) const;
+
+  /// @brief `this <> ALL (subquery)`.
+  Condition NeAll(const VirtualTable &subquery) const;
 
   /// @brief `this IS TRUE`.
   Condition IsTrue() const;
@@ -175,6 +247,11 @@ public:
   /// @brief `this % other`.
   Expr operator%(const Expr &other) const;
 
+  /// @brief Names this expression in a SELECT list: `this AS name`. `name`
+  /// must be a plain (undotted) SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  SelectItem As(std::string_view name) const;
+
   /// @brief Renders the expression as SQL text, parenthesizing it if its
   /// top-level operator does not bind at least as tightly as `precedence`.
   /// @param precedence The precedence context this expression is being
@@ -191,6 +268,10 @@ private:
 
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
+
+  static Expr FromInteger(long long value);
+  static Expr FromInteger(unsigned long long value);
+  static Expr FromDouble(double value);
 
   std::string expr_;
   OperatorPrecedence precedence_;
@@ -241,6 +322,29 @@ private:
 
   std::string expr_;
   OperatorPrecedence precedence_;
+};
+
+/// @brief A single entry of a SELECT list: an expression, optionally renamed
+/// with @ref Expr::As. Kept distinct from @ref Expr because `x AS y` is legal
+/// nowhere else, so `Where(x.As("y"))` or `Expr::Call("ABS", {x.As("y")})` do
+/// not compile.
+class [[nodiscard]] SelectItem final {
+public:
+  /// @brief Implicitly wraps anything an @ref Expr can be built from, e.g. an
+  /// Expr, a @ref Column, or an rvalue @ref Condition.
+  template <typename T,
+            std::enable_if_t<std::is_convertible_v<T, Expr>, int> = 0>
+  SelectItem(T &&value) : SelectItem(Expr(std::forward<T>(value)).ToString()) {}
+
+  /// @brief Renders the entry as SQL text.
+  std::string ToString() const;
+
+private:
+  friend class Expr;
+
+  explicit SelectItem(std::string s);
+
+  std::string s_;
 };
 
 /// @brief Transitional representation for CASE WHEN ... END
@@ -326,6 +430,13 @@ public:
   /// bracketing, since a bare table name never needs it.
   virtual std::string ToStringBracketed() const;
 
+  /// @brief Renders this table value as a FROM item. Distinct from @ref
+  /// ToStringBracketed because PostgreSQL's `table_ref` grammar accepts a bare
+  /// join but parenthesizes one only when an alias follows.
+  /// @throws std::logic_error for table values that PostgreSQL requires an
+  /// alias for, i.e. every subquery; call @ref As first.
+  virtual std::string ToStringAsFromItem() const;
+
   /// @brief Aliases this table value as `this AS name`, usable as a FROM
   /// source. `name` must be a valid (optionally dotted) SQL identifier.
   /// @throws std::invalid_argument if `name` is not a valid identifier.
@@ -349,6 +460,10 @@ public:
   /// @brief Returns the name as-is: a bare table name never needs brackets.
   std::string ToStringBracketed() const override;
 
+  /// @brief Returns the name as-is; this also covers the aliased subqueries
+  /// and joins that @ref VirtualTable::As turns into a Table.
+  std::string ToStringAsFromItem() const override;
+
 protected:
   Table(std::string name);
 
@@ -359,16 +474,18 @@ private:
 /// @brief Transitional representation for SELECT query
 class [[nodiscard]] SelectExpr final : public VirtualTable {
 public:
-  /// @brief Starts a `SELECT ... FROM tbl` query.
-  SelectExpr(const Table &tbl);
+  /// @brief Starts a `SELECT ... FROM tbl` query. `tbl` may be a table, a
+  /// join, or anything @ref VirtualTable::As has aliased.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias.
+  SelectExpr(const VirtualTable &tbl);
 
-  /// @brief Sets the SELECT list to a single expression, replacing any
-  /// previously set list.
-  SelectExpr Select(Expr exp) &&;
+  /// @brief Sets the SELECT list to a single entry, replacing any previously
+  /// set list.
+  SelectExpr Select(SelectItem item) &&;
 
-  /// @brief Sets the SELECT list to a comma-separated list of expressions,
+  /// @brief Sets the SELECT list to a comma-separated list of entries,
   /// replacing any previously set list.
-  SelectExpr Select(std::initializer_list<Expr> exps) &&;
+  SelectExpr Select(std::initializer_list<SelectItem> items) &&;
 
   /// @brief Sets the WHERE clause.
   SelectExpr Where(Condition exp) &&;
@@ -426,7 +543,7 @@ private:
 };
 
 /// @brief Handy fabric for @ref SelectExpr
-SelectExpr From(const Table &tbl);
+SelectExpr From(const VirtualTable &tbl);
 
 /// @brief Transitional representation for DELETE FROM query
 class [[nodiscard]] DeleteFrom final : public VirtualTable {
@@ -548,6 +665,10 @@ public:
 
   std::string ToString() const override;
 
+  /// @brief Returns the join unbracketed: PostgreSQL only allows parentheses
+  /// around a FROM-item join when an alias follows.
+  std::string ToStringAsFromItem() const override;
+
 private:
   std::string a_, b_;
   std::string kind_;
@@ -641,6 +762,10 @@ struct [[nodiscard]] Column final {
 
   /// @brief Converts this column reference into an Expr wrapping its name.
   operator Expr() const;
+
+  /// @brief Names this column in a SELECT list: `this AS alias`.
+  /// @throws std::invalid_argument if `alias` is not a valid identifier.
+  SelectItem As(std::string_view alias) const;
 
   /// @brief `this < other`.
   Condition operator<(const Expr &other) const;

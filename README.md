@@ -45,16 +45,18 @@ using namespace iron_query;
 
 ...
 Table users = Table::FromRaw("users");
-TableAlias left = TableAlias::From("left");
-TableAlias right = TableAlias::From("right");
+// "left"/"right" would not do: they are reserved words in PostgreSQL.
+TableAlias lhs = TableAlias::From("lhs");
+TableAlias rhs = TableAlias::From("rhs");
 Column name{"name", "TEXT"};
 Column age{"age", "BIGINT"};
 
-std::string query = Join(
-    From(users.As("left")).Select(Expr::FromRaw("*")),
-    From(users.As("right")).Select({name, age}),
-    Inner()
-).On(Expr::FromRaw(left.Dot("second_name")) == Expr::FromRaw(right.Dot(name)))
+std::string query = From(
+    Join(users.As("lhs"), users.As("rhs"), Inner())
+        .On(Expr::FromRaw(lhs.Dot("second_name")) ==
+            Expr::FromRaw(rhs.Dot(name))))
+    .Select({Expr::FromRaw(lhs.Dot(name)).As("name"), age})
+    .Where(Expr(age).Between(18, 65) && Expr(age).NotIn({30, 40}))
     .ToString();
 
 query = DeleteFrom(users).Where(age < 10).ToString();

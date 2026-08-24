@@ -1,6 +1,9 @@
 #include <iron_query/iron_query.hpp>
 
+#include <array>
 #include <cctype>
+#include <charconv>
+#include <cmath>
 
 namespace iron_query {
 
@@ -34,6 +37,16 @@ void ValidateIdentifier(std::string_view s) {
   }
 }
 
+std::string JoinCsv(const std::vector<std::string> &items) {
+  std::string s;
+  for (const auto &item : items) {
+    if (!s.empty())
+      s += ", ";
+    s += item;
+  }
+  return s;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -43,10 +56,36 @@ void ValidateIdentifier(std::string_view s) {
 Expr::Expr(std::string s)
     : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
 
-Expr::Expr(int i) : Expr(std::to_string(i)) {}
-
 Expr::Expr(std::string expr, OperatorPrecedence precedence)
     : expr_(std::move(expr)), precedence_(precedence) {}
+
+Expr Expr::FromInteger(long long value) { return Expr(std::to_string(value)); }
+
+// Separate from the signed overload: casting an unsigned 64-bit value to
+// long long would wrap it.
+Expr Expr::FromInteger(unsigned long long value) {
+  return Expr(std::to_string(value));
+}
+
+Expr Expr::FromDouble(double value) {
+  if (!std::isfinite(value))
+    throw std::invalid_argument(
+        "iron_query: NaN and infinity have no plain SQL literal");
+
+  // std::to_string would round to 6 fractional digits; to_chars gives the
+  // shortest representation that reads back as the same double, and is
+  // locale-independent.
+  std::array<char, 32> buf{};
+  auto [end, ec] = std::to_chars(buf.data(), buf.data() + buf.size(), value);
+  if (ec != std::errc())
+    throw std::invalid_argument("iron_query: cannot render double literal");
+
+  std::string s(buf.data(), end);
+  // Keep the value typed as numeric: a bare "1" would be an integer literal.
+  if (s.find('.') == std::string::npos && s.find('e') == std::string::npos)
+    s += ".0";
+  return Expr(std::move(s));
+}
 
 Expr Expr::FromRaw(std::string s) { return Expr(std::move(s)); }
 
@@ -84,6 +123,12 @@ Expr Expr::Ident(const std::string &name) {
   return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
 }
 
+Expr Expr::Null() { return Expr("NULL", OperatorPrecedence::kSymbol); }
+
+Expr Expr::Bool(bool value) {
+  return Expr(value ? "TRUE" : "FALSE", OperatorPrecedence::kSymbol);
+}
+
 Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
   ValidateIdentifier(name);
   std::string s = name + "(";
@@ -110,7 +155,7 @@ Condition Expr::NotExists(const VirtualTable &subquery) {
 
 Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
 
-Expr Expr::CountAll() { return Expr("COUNT(*)"); }
+Expr Expr::CountAll() { return Expr(std::string("COUNT(*)")); }
 
 Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
 
@@ -176,16 +221,69 @@ Condition Expr::NotLike(const Expr &a) const {
                    OperatorPrecedence::kBetween);
 }
 
-Condition Expr::In(const Expr &a) const {
+namespace {
+
+// The right-hand side of IN/ANY/ALL is always parenthesized by the grammar
+// itself, so it is built here rather than via Extract().
+std::string RenderValueList(std::initializer_list<Expr> values) {
+  if (values.size() == 0)
+    throw std::invalid_argument("iron_query: IN () needs at least one value");
+
+  std::vector<std::string> rendered;
+  rendered.reserve(values.size());
+  for (const auto &value : values)
+    rendered.push_back(value.ToString());
+  return "(" + JoinCsv(rendered) + ")";
+}
+
+} // namespace
+
+Condition Expr::In(std::initializer_list<Expr> values) const {
   return Condition(Extract(OperatorPrecedence::kBetween) + " IN " +
-                       a.Extract(OperatorPrecedence::kBetween),
+                       RenderValueList(values),
                    OperatorPrecedence::kBetween);
 }
 
-Condition Expr::NotIn(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
-                       a.Extract(OperatorPrecedence::kBetween),
+Condition Expr::In(const VirtualTable &subquery) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " IN " +
+                       subquery.ToStringBracketed(),
                    OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotIn(std::initializer_list<Expr> values) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
+                       RenderValueList(values),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotIn(const VirtualTable &subquery) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
+                       subquery.ToStringBracketed(),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::EqAny(const Expr &array) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " = ANY (" +
+                       array.ToString() + ")",
+                   OperatorPrecedence::kCompare);
+}
+
+Condition Expr::EqAny(const VirtualTable &subquery) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " = ANY " +
+                       subquery.ToStringBracketed(),
+                   OperatorPrecedence::kCompare);
+}
+
+Condition Expr::NeAll(const Expr &array) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " <> ALL (" +
+                       array.ToString() + ")",
+                   OperatorPrecedence::kCompare);
+}
+
+Condition Expr::NeAll(const VirtualTable &subquery) const {
+  return Condition(Extract(OperatorPrecedence::kCompare) + " <> ALL " +
+                       subquery.ToStringBracketed(),
+                   OperatorPrecedence::kCompare);
 }
 
 Condition Expr::IsTrue() const {
@@ -274,6 +372,14 @@ Expr Expr::operator%(const Expr &other) const {
               OperatorPrecedence::kMul);
 }
 
+SelectItem Expr::As(std::string_view name) const {
+  // Not ValidateIdentifier(): a column alias cannot be dot-qualified.
+  if (!IsPlainIdentifier(name))
+    throw std::invalid_argument("iron_query: invalid column alias: " +
+                                std::string(name));
+  return SelectItem(ToString() + " AS " + std::string(name));
+}
+
 std::string Expr::Extract(OperatorPrecedence precedence) const {
   if (precedence_ >= precedence)
     return "(" + expr_ + ")";
@@ -325,6 +431,14 @@ std::string Condition::ToString() const {
 Condition::operator Expr() const && {
   return Expr::FromRaw(expr_, precedence_);
 }
+
+// ---------------------------------------------------------------------------
+// SelectItem
+// ---------------------------------------------------------------------------
+
+SelectItem::SelectItem(std::string s) : s_(std::move(s)) {}
+
+std::string SelectItem::ToString() const { return s_; }
 
 // ---------------------------------------------------------------------------
 // CaseBuilder
@@ -391,6 +505,13 @@ std::string VirtualTable::ToStringBracketed() const {
   return "(" + ToString() + ")";
 }
 
+std::string VirtualTable::ToStringAsFromItem() const {
+  // PostgreSQL rejects "FROM (SELECT ...)" with "subquery in FROM must have an
+  // alias"; failing here turns that server-side error into a build-time one.
+  throw std::logic_error(
+      "iron_query: this FROM item requires an alias; use As()");
+}
+
 Table VirtualTable::As(std::string_view name) const {
   ValidateIdentifier(name);
   // No outer brackets: PostgreSQL's table_ref grammar attaches the alias
@@ -414,6 +535,8 @@ std::string Table::ToStringBracketed() const {
   return ToString();
 }
 
+std::string Table::ToStringAsFromItem() const { return ToString(); }
+
 // ---------------------------------------------------------------------------
 // SelectExpr
 // ---------------------------------------------------------------------------
@@ -421,6 +544,8 @@ std::string Table::ToStringBracketed() const {
 namespace {
 
 std::string RenderTerm(const Expr &exp) { return exp.ToString(); }
+
+std::string RenderTerm(const SelectItem &item) { return item.ToString(); }
 
 std::string RenderTerm(const OrderByTerm &term) {
   std::string s = term.expr.ToString();
@@ -442,14 +567,15 @@ std::vector<std::string> RenderAll(std::initializer_list<T> terms) {
 
 } // namespace
 
-SelectExpr::SelectExpr(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
+SelectExpr::SelectExpr(const VirtualTable &tbl)
+    : from_(tbl.ToStringAsFromItem()) {}
 
-SelectExpr SelectExpr::Select(Expr exp) && {
-  return std::move(*this).Select({std::move(exp)});
+SelectExpr SelectExpr::Select(SelectItem item) && {
+  return std::move(*this).Select({std::move(item)});
 }
 
-SelectExpr SelectExpr::Select(std::initializer_list<Expr> exps) && {
-  select_ = RenderAll(exps);
+SelectExpr SelectExpr::Select(std::initializer_list<SelectItem> items) && {
+  select_ = RenderAll(items);
   return std::move(*this);
 }
 
@@ -492,16 +618,6 @@ SelectExpr SelectExpr::Offset(int offset) && {
 }
 
 namespace {
-
-std::string JoinCsv(const std::vector<std::string> &items) {
-  std::string s;
-  for (const auto &item : items) {
-    if (!s.empty())
-      s += ", ";
-    s += item;
-  }
-  return s;
-}
 
 std::string JoinCsvIndented(const std::vector<std::string> &items) {
   std::string s;
@@ -560,7 +676,7 @@ std::string SelectExpr::ToStringFormatted() const {
   return s;
 }
 
-SelectExpr From(const Table &tbl) { return SelectExpr(tbl); }
+SelectExpr From(const VirtualTable &tbl) { return SelectExpr(tbl); }
 
 // ---------------------------------------------------------------------------
 // DeleteFrom
@@ -698,6 +814,8 @@ std::string Join::ToString() const {
   return s;
 }
 
+std::string Join::ToStringAsFromItem() const { return ToString(); }
+
 // ---------------------------------------------------------------------------
 // SetOpKind implementations
 // ---------------------------------------------------------------------------
@@ -752,6 +870,11 @@ WithBuilder With(std::string name, const VirtualTable &query) {
 // ---------------------------------------------------------------------------
 
 Column::operator Expr() const { return Expr::FromRaw(name); }
+
+// `alias`, not `name`: Column::name is a member.
+SelectItem Column::As(std::string_view alias) const {
+  return Expr(*this).As(alias);
+}
 
 Condition Column::operator<(const Expr &other) const {
   return Expr(*this) < other;

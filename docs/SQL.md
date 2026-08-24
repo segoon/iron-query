@@ -1,6 +1,6 @@
 # SQL coverage
 
-Status of IronQuery's SQL surface as of `f17fdd5`.
+Status of IronQuery's SQL surface as of the P0 batch (§5 items 1-4).
 
 Reference dialect: **PostgreSQL 17**
 ([SQL commands](https://www.postgresql.org/docs/current/sql-commands.html),
@@ -23,11 +23,11 @@ whole point of the product (see `docs/VISION.md`).
 
 | Statement | Notes |
 |---|---|
-| `SELECT` | `SelectExpr`: select list, `FROM` (single table), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY` (with `ASC`/`DESC`), `LIMIT`, `OFFSET` |
+| `SELECT` | `SelectExpr`: select list (with `AS` aliases), `FROM` (single item), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY` (with `ASC`/`DESC`), `LIMIT`, `OFFSET` |
 | `INSERT INTO ... VALUES (...)` | `InsertInto`: single row, explicit column list |
 | `UPDATE ... SET ... WHERE` | `Update` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
-| `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON` |
+| `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
 | `WITH ... AS (...)` | `With(...)...Main(...)`, N non-recursive CTEs |
 | Subqueries | `VirtualTable::operator Expr` (scalar subquery), `Expr::Exists`/`NotExists`, CTE bodies |
@@ -36,13 +36,11 @@ whole point of the product (see `docs/VISION.md`).
 
 | Statement / clause | Rarity | Notes |
 |---|---|---|
-| `SELECT ... FROM <join>` | **10** | **`From()` takes `const Table&`, so a `Join` cannot be a `FROM` source at all.** Today `Join` can only be the outermost node, with whole `SELECT`s as its operands. This is the single biggest hole. |
 | `SELECT DISTINCT` / `DISTINCT ON` | 9 | No API. |
-| Column aliases (`expr AS name`) in the select list | 9 | No API; needs `Expr::FromRaw("x AS y")`. |
 | Multi-row `INSERT ... VALUES (a),(b)` | 8 | `Values()` can only be called for one row (second call appends into the same tuple). |
 | `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | 8 | PG-specific but ubiquitous there. |
 | `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | 8 | |
-| Multiple `FROM` items (`FROM a, b`) | 7 | Only one table. |
+| Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
 | `ORDER BY ... NULLS FIRST/LAST` | 6 | `SortDirection` has only asc/desc. |
@@ -68,7 +66,6 @@ whole point of the product (see `docs/VISION.md`).
 
 | Feature | API |
 |---|---|
-| Integer literal | `Expr(int)` (implicit) |
 | Escaped string literal | `Expr::Literal` |
 | Escaped identifier | `Expr::Ident` |
 | Bind placeholders `$1..$10` | `_1` .. `_10` |
@@ -78,7 +75,11 @@ whole point of the product (see `docs/VISION.md`).
 | `AND` / `OR` / `NOT` | `Condition::operator&& \|\| !` |
 | `BETWEEN` / `NOT BETWEEN` | `Expr::Between`/`NotBetween` |
 | `LIKE` / `NOT LIKE` | `Expr::Like`/`NotLike` |
-| `IN` / `NOT IN` | `Expr::In`/`NotIn` (right side is a single `Expr`) |
+| `IN` / `NOT IN` | `Expr::In`/`NotIn`, over a value list or a subquery |
+| `= ANY` / `<> ALL` | `Expr::EqAny`/`NeAll`, over an array expression or a subquery |
+| `NULL` / `TRUE` / `FALSE` literals | `Expr::Null`, `Expr::Bool` |
+| Numeric literals | `Expr(T)` for any integer width/signedness and for `float`/`double` (round-trip-exact) |
+| Column alias | `Expr::As`/`Column::As`, returning a `SelectItem` usable only in a select list |
 | `IS [NOT] NULL`, `IS TRUE/FALSE` | `Expr::IsNull` etc. |
 | `EXISTS` / `NOT EXISTS` | `Expr::Exists`/`NotExists` |
 | Field access `a.b`, subscript `a[i]` | `Expr::Dot`, `operator[]` |
@@ -92,17 +93,10 @@ whole point of the product (see `docs/VISION.md`).
 
 | Feature | Rarity | Notes |
 |---|---|---|
-| `NULL` literal | **10** | No `Expr::Null()`. `SET x = NULL`, `COALESCE(x, NULL)` need `FromRaw`. |
-| Boolean literals `TRUE`/`FALSE` | 9 | |
-| Floating-point / numeric literals | 9 | Only `Expr(int)`. `Expr(double)` is missing (and needs round-trip-safe formatting, not `std::to_string`). |
-| 64-bit integer literals | 8 | `Expr(int)` silently truncates nothing, but `int64_t` doesn't bind — it's ambiguous/narrowing. |
 | String concatenation `\|\|` | 8 | Collides with `operator\|\|` on `Condition`; needs a named `Concat`. |
 | Unary minus, unary `NOT` on `Expr` | 8 | `-x` has no API. |
-| `IN (a, b, c)` list form | **9** | `In()` takes one `Expr`; a value list requires building `"(1, 2, 3)"` by hand — exactly the string concatenation the library exists to remove. |
-| `IN (subquery)` | 8 | Works only via `VirtualTable::operator Expr` on an rvalue; not discoverable. |
 | `ILIKE`, `SIMILAR TO`, `~` / `!~` regex | 7 | PG-specific, very common in search filters. |
 | `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` | 6 | The NULL-safe comparison; important for correctness. |
-| `ANY`/`ALL`/`SOME` (incl. `= ANY($1)`) | 6 | The idiomatic PG replacement for a dynamic `IN` list with bind params. |
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
 | Aggregate modifiers: `COUNT(DISTINCT x)`, `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 6 | `COUNT(DISTINCT x)` alone is very common. |
 | More aggregates: `string_agg`, `array_agg`, `json_agg`, `bool_and/or` | 5 | `Expr::Call` covers them, but arg-count/typo safety is lost for none — this is arguably fine. |
@@ -130,6 +124,11 @@ whole point of the product (see `docs/VISION.md`).
 - `TableAlias::From()` with identifier validation; `TableAlias::Dot`.
 - Trust boundary is explicit: every unescaped entry point is named `*Raw`.
 - `Condition` vs `Expr` separation, so `Where(age + 1)` does not compile.
+- `SelectItem` vs `Expr` separation, so `Where(x.As("y"))` does not compile either.
+- `Expr(bool)`/`Expr(char)`/`Expr(const char*)` are deleted rather than silently
+  rendered as numbers, so `Expr("text")` is a compile error instead of `TRUE`.
+- FROM items are validated: an unaliased subquery in `FROM` throws at build time
+  instead of failing on the server.
 - Automatic parenthesization driven by the PG precedence table.
 
 ### Gaps
@@ -137,7 +136,7 @@ whole point of the product (see `docs/VISION.md`).
 | Feature | Rarity | Notes |
 |---|---|---|
 | `Column` cannot produce a *qualified* `Expr` | **9** | `TableAlias::Dot` returns `std::string`, so every qualified reference in the README goes through `Expr::FromRaw(left.Dot(name))`. The library's flagship safety feature is bypassed in its own quick-start example. |
-| `Column` has no `IsNull`/`Like`/`In`/`Between`/arithmetic | 8 | Only the six comparisons are duplicated onto `Column`; everything else needs an explicit `Expr(col)`. Duplication that should be solved by one conversion path, not by more overloads. |
+| `Column` has no `IsNull`/`Like`/`In`/`Between`/arithmetic | 8 | Only the six comparisons and `As` are duplicated onto `Column`; everything else needs an explicit `Expr(col)`. Duplication that should be solved by one conversion path, not by more overloads. |
 | `is_nullable` is stored and never used | 7 | Could reject `col == NULL`, or warn on `!=` against a nullable column. |
 | `Column.type` is stored and never used | 6 | Could power a typed `Cast`, or reject `text_col + int_col`. |
 | No `TableWithColumns` → alias binding | 8 | Nothing ties an alias to a column set, so `alias.Dot(col)` can't verify `col` belongs to the table. |
@@ -178,7 +177,8 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 **Caveat:** no PostgreSQL or `libpg_query` is available in this environment, so the
 corrected strings were checked against the grammar by reading it, not by parsing them.
 Defect #2 is precisely what a string-comparison-only suite cannot catch — a test was
-asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 6 in §5.
+asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 6 in §5. The same caveat
+applies to everything added for P0 items 1-4.
 
 ---
 
@@ -188,23 +188,38 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P0 — the library is hard to use without these**
 
-1. **Make `Join` a first-class `FROM` source.** Change `From()`/`DeleteFrom`/`Update`
-   to accept `const VirtualTable&`, and give `SelectExpr` a `Join(...)`/`LeftJoin(...)`
-   chain step. Without this, the most common real query — a select over a join with a
-   `WHERE` — cannot be built. (`As()`'s bracketing, defect #2, is already fixed, so
-   `(a JOIN b) AS j` is now a usable building block for this.)
-2. **`Expr::Null()`, `Expr::Bool()`, `Expr(double)`, `Expr(int64_t)`.** The literal
-   vocabulary is currently integers and strings only.
-3. **`IN` with a value list and with a subquery**: `Expr::In(std::initializer_list<Expr>)`
-   and `Expr::In(const VirtualTable&)`. Also add `= ANY(...)` for the bind-param form.
-4. **Column aliases in the select list**: `Expr::As(name)` with identifier validation.
+1. ~~Make `Join` a first-class `FROM` source.~~ Done. `From()`/`SelectExpr` now take a
+   `const VirtualTable&` and render it through a new `ToStringAsFromItem()` virtual:
+   `Table` returns its bare name, `Join` returns itself **unbracketed** (PostgreSQL's
+   `table_ref` allows `'(' joined_table ')'` only when an alias follows), and everything
+   else — every subquery — throws, since PostgreSQL requires an alias there. Use `As()`.
+   **`DeleteFrom`/`Update` deliberately still take a `const Table&`:** their target is a
+   plain `relation_expr`, never a join or subquery, so widening them would only let the
+   builder emit SQL that cannot parse. No `SelectExpr::Join(...)` chain step either —
+   `From(Join(a, b, Inner()).On(cond))` already composes, and a second builder type for
+   it would earn nothing.
+2. ~~`Expr::Null()`, `Expr::Bool()`, `Expr(double)`, `Expr(int64_t)`.~~ Done, via
+   constrained template constructors (one for integers of any width and signedness, one
+   for floating point) plus deleted `bool`/`char`/`const char*` overloads — plain
+   overloads would have made `Expr(unsigned)` ambiguous and let `Expr("text")` decay to
+   `TRUE`. Doubles render through `std::to_chars` (shortest round-trip); NaN/infinity
+   throw, since SQL spells them as typed literals.
+3. ~~`IN` with a value list and with a subquery.~~ Done, plus `EqAny`/`NeAll` for the
+   bind-parameter form. The old `In(const Expr&)`/`NotIn(const Expr&)` are **removed**:
+   they emitted `x IN a` unparenthesized, so the only way to use them was to concatenate
+   `"(1, 2, 3)"` by hand.
+4. ~~Column aliases in the select list.~~ Done. `Expr::As`/`Column::As` return a
+   `SelectItem`, a new type that only `Select()` accepts, so `x AS y` cannot leak into a
+   `WHERE` or a function argument.
 5. ~~Fix defects #1 and #4.~~ Done — see §4.
 6. **Validate generated SQL against a real parser.** Every test is still a string
    comparison, which is why defect #2 survived to be found by reading. Feeding each
    expected string through `postgres --check`/`libpg_query`/an ephemeral PG container in
    CI would turn the whole suite into a syntax oracle — the cheapest possible guard for
-   a library whose entire value proposition is "your SQL parses". **Now the highest-value
-   item in this list**, since the §4 fixes are themselves only grammar-checked by hand.
+   a library whose entire value proposition is "your SQL parses". **Now the only open P0
+   item, and the highest-value one**: the §4 fixes and everything added for items 1-4
+   above are grammar-checked by hand, not by a parser. Deliberately deferred out of the
+   P0 batch as CI/infrastructure work rather than API work.
 
 **P1 — routine work that currently needs `FromRaw`**
 
