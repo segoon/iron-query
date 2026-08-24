@@ -38,19 +38,19 @@ class VirtualTable;
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
 public:
-  /// @brief Wraps a trusted, developer-written SQL fragment verbatim.
-  Expr(std::string s);
-
-  /// @brief Wraps a trusted, developer-written SQL fragment verbatim.
-  Expr(const char *s);
-
   /// @brief Wraps an integer literal.
   Expr(int i);
 
-  /// @brief Wraps a trusted SQL fragment together with the precedence of its
-  /// top-level operator, so that @ref Extract can bracket it correctly when
-  /// it is embedded into a higher-precedence expression.
-  Expr(std::string expr, OperatorPrecedence precedence);
+  /// @brief Wraps a trusted, developer-written SQL fragment verbatim. Never
+  /// pass untrusted/dynamic data here — use @ref Literal or @ref Ident
+  /// instead, since this string is inserted into the query unescaped.
+  static Expr FromRaw(std::string s);
+
+  /// @brief Wraps a trusted, developer-written SQL fragment verbatim,
+  /// together with the precedence of its top-level operator, so that @ref
+  /// Extract can bracket it correctly when it is embedded into a
+  /// higher-precedence expression. Never pass untrusted/dynamic data here.
+  static Expr FromRaw(std::string s, OperatorPrecedence precedence);
 
   /// @brief Builds a properly escaped and quoted SQL string literal out of an
   /// arbitrary (possibly untrusted) value. Use this instead of Expr(string)
@@ -63,9 +63,11 @@ public:
   /// developer-written literal.
   static Expr Ident(const std::string &name);
 
-  /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
-  /// {a, b}) -> "COALESCE(a, b)".
-  static Expr Call(const std::string &name, std::initializer_list<Expr> args);
+  /// @brief Builds a function call expression, e.g. Expr::CallRaw("COALESCE",
+  /// {a, b}) -> "COALESCE(a, b)". `name` is a trusted, developer-written SQL
+  /// fragment inserted verbatim; never pass untrusted/dynamic data here.
+  static Expr CallRaw(const std::string &name,
+                      std::initializer_list<Expr> args);
 
   /// @brief EXISTS (subquery).
   static Expr Exists(const VirtualTable &subquery);
@@ -94,11 +96,15 @@ public:
   /// @brief Member/field access: `this.other`.
   Expr Dot(const Expr &other) const;
 
-  /// @brief SQL type cast: `CAST (this AS type)`.
-  Expr Cast(const std::string &type) const;
+  /// @brief SQL type cast: `CAST (this AS type)`. `type` is a trusted,
+  /// developer-written SQL fragment inserted verbatim; never pass
+  /// untrusted/dynamic data here.
+  Expr CastRaw(const std::string &type) const;
 
-  /// @brief `this COLLATE collation`.
-  Expr Collate(const std::string &collation) const;
+  /// @brief `this COLLATE collation`. `collation` is a trusted,
+  /// developer-written SQL fragment inserted verbatim; never pass
+  /// untrusted/dynamic data here.
+  Expr CollateRaw(const std::string &collation) const;
 
   /// @brief Array/index access: `this[other]`.
   Expr operator[](const Expr &other) const;
@@ -190,6 +196,9 @@ public:
   std::string ToString() const;
 
 private:
+  Expr(std::string s);
+  Expr(std::string expr, OperatorPrecedence precedence);
+
   OperatorPrecedence precedence_;
   std::string expr_;
 };
@@ -271,13 +280,18 @@ public:
 /// @brief Table with name
 class [[nodiscard]] Table /* not final! */ : public VirtualTable {
 public:
-  /// @brief Wraps a trusted, developer-written table name/reference.
-  Table(std::string name);
+  /// @brief Wraps a trusted, developer-written table name/reference. Never
+  /// pass untrusted/dynamic data here — use @ref Expr::Ident to escape a
+  /// dynamically-sourced name and pass it as an alias/expression instead.
+  static Table FromRaw(std::string name);
 
   std::string ToString() const override;
 
   /// @brief Returns the name as-is: a bare table name never needs brackets.
   std::string ToStringBracketed() const override;
+
+protected:
+  Table(std::string name);
 
 private:
   std::string name_;
@@ -298,19 +312,23 @@ public:
   /// @brief Sets the WHERE clause.
   SelectExpr Where(Expr exp) &&;
 
-  /// @brief Sets the ORDER BY clause to a single (trusted) expression.
-  SelectExpr OrderBy(std::string_view by) &&;
+  /// @brief Sets the ORDER BY clause to a single trusted, developer-written
+  /// expression, inserted verbatim. Never pass untrusted/dynamic data here.
+  SelectExpr OrderByRaw(std::string_view by) &&;
 
-  /// @brief Sets the ORDER BY clause to a comma-separated list of (trusted)
-  /// expressions.
-  SelectExpr OrderBy(std::initializer_list<std::string_view> by) &&;
+  /// @brief Sets the ORDER BY clause to a comma-separated list of trusted,
+  /// developer-written expressions, inserted verbatim. Never pass
+  /// untrusted/dynamic data here.
+  SelectExpr OrderByRaw(std::initializer_list<std::string_view> by) &&;
 
-  /// @brief Sets the GROUP BY clause to a single (trusted) expression.
-  SelectExpr GroupBy(std::string_view by) &&;
+  /// @brief Sets the GROUP BY clause to a single trusted, developer-written
+  /// expression, inserted verbatim. Never pass untrusted/dynamic data here.
+  SelectExpr GroupByRaw(std::string_view by) &&;
 
-  /// @brief Sets the GROUP BY clause to a comma-separated list of (trusted)
-  /// expressions.
-  SelectExpr GroupBy(std::initializer_list<std::string_view> by) &&;
+  /// @brief Sets the GROUP BY clause to a comma-separated list of trusted,
+  /// developer-written expressions, inserted verbatim. Never pass
+  /// untrusted/dynamic data here.
+  SelectExpr GroupByRaw(std::initializer_list<std::string_view> by) &&;
 
   /// @brief Sets the HAVING clause.
   SelectExpr Having(Expr exp) &&;
@@ -510,21 +528,27 @@ private:
 /// @brief Transitional representation for a WITH clause being built up
 class [[nodiscard]] WithBuilder final {
 public:
-  /// @brief Starts a WITH clause with a single CTE: `name AS (query)`.
-  WithBuilder(std::string name, const VirtualTable &query);
-
-  /// @brief Adds another CTE: `, name AS (query)`.
-  WithBuilder With(std::string name, const VirtualTable &query) &&;
+  /// @brief Adds another CTE: `, name AS (query)`. `name` is a trusted,
+  /// developer-written identifier inserted verbatim; never pass
+  /// untrusted/dynamic data here.
+  WithBuilder WithRaw(std::string name, const VirtualTable &query) &&;
 
   /// @brief Finalizes the WITH clause with the main query that follows it.
   WithQuery Main(const VirtualTable &query) &&;
 
 private:
+  /// @brief Starts a WITH clause with a single CTE: `name AS (query)`.
+  WithBuilder(std::string name, const VirtualTable &query);
+
   std::string ctes_;
+
+  friend WithBuilder WithRaw(std::string name, const VirtualTable &query);
 };
 
-/// @brief Handy fabric for @ref WithBuilder
-WithBuilder With(std::string name, const VirtualTable &query);
+/// @brief Handy fabric for @ref WithBuilder. `name` is a trusted,
+/// developer-written identifier inserted verbatim; never pass
+/// untrusted/dynamic data here.
+WithBuilder WithRaw(std::string name, const VirtualTable &query);
 
 // userver (???) PostgreSQL part:
 
@@ -557,17 +581,24 @@ struct [[nodiscard]] Column final {
 /// @brief Table with associated columns. Usually not created by hands.
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
-  /// @brief Attaches a set of columns to a table name.
-  TableWithColumns(std::string name, std::vector<Column> columns);
+  /// @brief Attaches a set of columns to a trusted, developer-written table
+  /// name. Never pass untrusted/dynamic data as `name`.
+  static TableWithColumns FromRaw(std::string name,
+                                  std::vector<Column> columns);
 
-  /// @brief Attaches a set of columns to a table name.
-  TableWithColumns(std::string name, std::initializer_list<Column> columns);
+  /// @brief Attaches a set of columns to a trusted, developer-written table
+  /// name. Never pass untrusted/dynamic data as `name`.
+  static TableWithColumns FromRaw(std::string name,
+                                  std::initializer_list<Column> columns);
 
   /// @brief Builds a comma-separated Expr listing all column names, for use
   /// as a SELECT list.
   Expr SelectArgAll() const;
 
 private:
+  TableWithColumns(std::string name, std::vector<Column> columns);
+  TableWithColumns(std::string name, std::initializer_list<Column> columns);
+
   std::vector<Column> columns_;
 };
 
@@ -575,8 +606,9 @@ private:
 /// `alias.column`.
 class [[nodiscard]] TableAlias final {
 public:
-  /// @brief Wraps a trusted, developer-written alias name.
-  TableAlias(std::string_view alias);
+  /// @brief Wraps a trusted, developer-written alias name, inserted
+  /// verbatim. Never pass untrusted/dynamic data here.
+  static TableAlias FromRaw(std::string_view alias);
 
   /// @brief Qualifies a column name as `alias.column`.
   std::string Dot(const std::string &column) const;
@@ -585,6 +617,8 @@ public:
   std::string Dot(const Column &column) const;
 
 private:
+  TableAlias(std::string_view alias);
+
   std::string alias_;
 };
 

@@ -9,13 +9,16 @@ namespace iron_query {
 Expr::Expr(std::string s)
     : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
 
-Expr::Expr(const char *s)
-    : expr_(s), precedence_(OperatorPrecedence::kSymbol) {}
-
 Expr::Expr(int i) : Expr(std::to_string(i)) {}
 
 Expr::Expr(std::string expr, OperatorPrecedence precedence)
     : expr_(std::move(expr)), precedence_(precedence) {}
+
+Expr Expr::FromRaw(std::string s) { return Expr(std::move(s)); }
+
+Expr Expr::FromRaw(std::string s, OperatorPrecedence precedence) {
+  return Expr(std::move(s), precedence);
+}
 
 Expr Expr::Literal(const std::string &value) {
   if (value.find('\0') != std::string::npos)
@@ -47,7 +50,7 @@ Expr Expr::Ident(const std::string &name) {
   return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
+Expr Expr::CallRaw(const std::string &name, std::initializer_list<Expr> args) {
   std::string s = name + "(";
   bool first = true;
   for (const auto &arg : args) {
@@ -70,17 +73,17 @@ Expr Expr::NotExists(const VirtualTable &subquery) {
               OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
+Expr Expr::Count(const Expr &arg) { return CallRaw("COUNT", {arg}); }
 
 Expr Expr::CountAll() { return Expr("COUNT(*)"); }
 
-Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
+Expr Expr::Sum(const Expr &arg) { return CallRaw("SUM", {arg}); }
 
-Expr Expr::Avg(const Expr &arg) { return Call("AVG", {arg}); }
+Expr Expr::Avg(const Expr &arg) { return CallRaw("AVG", {arg}); }
 
-Expr Expr::Min(const Expr &arg) { return Call("MIN", {arg}); }
+Expr Expr::Min(const Expr &arg) { return CallRaw("MIN", {arg}); }
 
-Expr Expr::Max(const Expr &arg) { return Call("MAX", {arg}); }
+Expr Expr::Max(const Expr &arg) { return CallRaw("MAX", {arg}); }
 
 Expr Expr::Dot(const Expr &other) const {
   return Expr(Extract(OperatorPrecedence::kDot) + "." +
@@ -88,13 +91,13 @@ Expr Expr::Dot(const Expr &other) const {
               OperatorPrecedence::kDot);
 }
 
-Expr Expr::Cast(const std::string &type) const {
+Expr Expr::CastRaw(const std::string &type) const {
   return Expr("CAST (" + Extract(OperatorPrecedence::kTypecast) + " AS " +
                   type + ")",
               OperatorPrecedence::kTypecast);
 }
 
-Expr Expr::Collate(const std::string &collation) const {
+Expr Expr::CollateRaw(const std::string &collation) const {
   return Expr(Extract(OperatorPrecedence::kCollate) + " COLLATE " + collation,
               OperatorPrecedence::kCollate);
 }
@@ -297,21 +300,21 @@ Expr CaseBuilder::End() const {
   if (!else_.empty())
     s += "ELSE " + else_ + " ";
   s += "END";
-  return Expr(std::move(s), OperatorPrecedence::kSymbol);
+  return Expr::FromRaw(std::move(s), OperatorPrecedence::kSymbol);
 }
 
 CaseBuilder Case() { return CaseBuilder(); }
 
-const Expr _1 = "$1";
-const Expr _2 = "$2";
-const Expr _3 = "$3";
-const Expr _4 = "$4";
-const Expr _5 = "$5";
-const Expr _6 = "$6";
-const Expr _7 = "$7";
-const Expr _8 = "$8";
-const Expr _9 = "$9";
-const Expr _10 = "$10";
+const Expr _1 = Expr::FromRaw("$1");
+const Expr _2 = Expr::FromRaw("$2");
+const Expr _3 = Expr::FromRaw("$3");
+const Expr _4 = Expr::FromRaw("$4");
+const Expr _5 = Expr::FromRaw("$5");
+const Expr _6 = Expr::FromRaw("$6");
+const Expr _7 = Expr::FromRaw("$7");
+const Expr _8 = Expr::FromRaw("$8");
+const Expr _9 = Expr::FromRaw("$9");
+const Expr _10 = Expr::FromRaw("$10");
 
 // ---------------------------------------------------------------------------
 // VirtualTable / Table
@@ -324,14 +327,17 @@ std::string VirtualTable::ToStringBracketed() const {
 }
 
 Table VirtualTable::As(std::string_view name) const {
-  return Table("(" + ToStringBracketed() + " AS " + std::string(name) + ")");
+  return Table::FromRaw("(" + ToStringBracketed() + " AS " + std::string(name) +
+                        ")");
 }
 
 VirtualTable::operator Expr() const && {
-  return Expr(ToStringBracketed(), OperatorPrecedence::kSymbol);
+  return Expr::FromRaw(ToStringBracketed(), OperatorPrecedence::kSymbol);
 }
 
 Table::Table(std::string name) : name_(std::move(name)) {}
+
+Table Table::FromRaw(std::string name) { return Table(std::move(name)); }
 
 std::string Table::ToString() const { return name_; }
 
@@ -362,23 +368,25 @@ SelectExpr SelectExpr::Where(Expr exp) && {
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::OrderBy(std::string_view by) && {
+SelectExpr SelectExpr::OrderByRaw(std::string_view by) && {
   order_by_ = {std::string(by)};
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::OrderBy(std::initializer_list<std::string_view> by) && {
+SelectExpr
+SelectExpr::OrderByRaw(std::initializer_list<std::string_view> by) && {
   for (const auto &arg : by)
     order_by_.emplace_back(arg);
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::GroupBy(std::string_view by) && {
+SelectExpr SelectExpr::GroupByRaw(std::string_view by) && {
   group_by_ = {std::string(by)};
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::GroupBy(std::initializer_list<std::string_view> by) && {
+SelectExpr
+SelectExpr::GroupByRaw(std::initializer_list<std::string_view> by) && {
   for (const auto &arg : by)
     group_by_.emplace_back(arg);
   return std::move(*this);
@@ -617,7 +625,8 @@ std::string WithQuery::ToString() const {
 WithBuilder::WithBuilder(std::string name, const VirtualTable &query)
     : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
 
-WithBuilder WithBuilder::With(std::string name, const VirtualTable &query) && {
+WithBuilder WithBuilder::WithRaw(std::string name,
+                                 const VirtualTable &query) && {
   ctes_ += ", " + std::move(name) + " AS " + query.ToStringBracketed();
   return std::move(*this);
 }
@@ -626,7 +635,7 @@ WithQuery WithBuilder::Main(const VirtualTable &query) && {
   return WithQuery(std::move(ctes_), query.ToString());
 }
 
-WithBuilder With(std::string name, const VirtualTable &query) {
+WithBuilder WithRaw(std::string name, const VirtualTable &query) {
   return WithBuilder(std::move(name), query);
 }
 
@@ -634,7 +643,7 @@ WithBuilder With(std::string name, const VirtualTable &query) {
 // Column
 // ---------------------------------------------------------------------------
 
-Column::operator Expr() const { return Expr(name); }
+Column::operator Expr() const { return Expr::FromRaw(name); }
 
 Expr Column::operator<(const Expr &other) const { return Expr(*this) < other; }
 
@@ -668,6 +677,17 @@ TableWithColumns::TableWithColumns(std::string name,
                                    std::initializer_list<Column> columns)
     : TableWithColumns(std::move(name), std::vector(columns)) {}
 
+TableWithColumns TableWithColumns::FromRaw(std::string name,
+                                           std::vector<Column> columns) {
+  return TableWithColumns(std::move(name), std::move(columns));
+}
+
+TableWithColumns
+TableWithColumns::FromRaw(std::string name,
+                          std::initializer_list<Column> columns) {
+  return TableWithColumns(std::move(name), columns);
+}
+
 Expr TableWithColumns::SelectArgAll() const {
   std::string s;
   for (const auto &col : columns_) {
@@ -675,7 +695,7 @@ Expr TableWithColumns::SelectArgAll() const {
       s += ", ";
     s += col.name;
   }
-  return Expr(s);
+  return Expr::FromRaw(s);
 }
 
 // ---------------------------------------------------------------------------
@@ -683,6 +703,10 @@ Expr TableWithColumns::SelectArgAll() const {
 // ---------------------------------------------------------------------------
 
 TableAlias::TableAlias(std::string_view alias) : alias_(alias) {}
+
+TableAlias TableAlias::FromRaw(std::string_view alias) {
+  return TableAlias(alias);
+}
 
 std::string TableAlias::Dot(const std::string &column) const {
   return alias_ + "." + column;

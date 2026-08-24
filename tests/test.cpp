@@ -5,85 +5,100 @@
 using namespace iron_query;
 
 TEST(Select, From) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").ToString(), "SELECT * FROM test");
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).ToString(),
+            "SELECT * FROM test");
 }
 
 TEST(Select, SelectSmthFrom) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("a, b").ToString(), "SELECT a, b FROM test");
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("a, b")).ToString(),
+            "SELECT a, b FROM test");
 }
 
 TEST(Select, Multi) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select({"a", "b"}).ToString(), "SELECT a, b FROM test");
+  EXPECT_EQ(
+      From(tbl).Select({Expr::FromRaw("a"), Expr::FromRaw("b")}).ToString(),
+      "SELECT a, b FROM test");
 }
 
 TEST(Select, Where) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").Where("a = b").ToString(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .Where(Expr::FromRaw("a = b"))
+                .ToString(),
             "SELECT * FROM test WHERE a = b");
 }
 
 TEST(Select, OrderBy) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").OrderBy("name").ToString(),
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).OrderByRaw("name").ToString(),
             "SELECT * FROM test ORDER BY name");
 }
 
 TEST(Select, OrderByMulti) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToString(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .OrderByRaw({"name", "age"})
+                .ToString(),
             "SELECT * FROM test ORDER BY name, age");
 }
 
 TEST(Select, Full) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("a, b").Where("a = b").OrderBy("name").ToString(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("a, b"))
+                .Where(Expr::FromRaw("a = b"))
+                .OrderByRaw("name")
+                .ToString(),
             "SELECT a, b FROM test WHERE a = b ORDER BY name");
 }
 
 TEST(Select, GroupByHaving) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(From(tbl)
-                .Select("a, COUNT(*)")
-                .GroupBy("a")
-                .Having(Expr("COUNT(*)") > 1)
+                .Select(Expr::FromRaw("a, COUNT(*)"))
+                .GroupByRaw("a")
+                .Having(Expr::FromRaw("COUNT(*)") > 1)
                 .ToString(),
             "SELECT a, COUNT(*) FROM test GROUP BY a HAVING COUNT(*) > 1");
 }
 
 TEST(Select, GroupByMulti) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").GroupBy({"a", "b"}).ToString(),
-            "SELECT * FROM test GROUP BY a, b");
+  EXPECT_EQ(
+      From(tbl).Select(Expr::FromRaw("*")).GroupByRaw({"a", "b"}).ToString(),
+      "SELECT * FROM test GROUP BY a, b");
 }
 
 TEST(Select, LimitOffset) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").Limit(10).Offset(5).ToString(),
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).Limit(10).Offset(5).ToString(),
             "SELECT * FROM test LIMIT 10 OFFSET 5");
 }
 
 TEST(Select, AllClauses) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(From(tbl)
-                .Select("a")
-                .Where("a > 0")
-                .GroupBy("a")
-                .Having("COUNT(*) > 1")
-                .OrderBy("a")
+                .Select(Expr::FromRaw("a"))
+                .Where(Expr::FromRaw("a > 0"))
+                .GroupByRaw("a")
+                .Having(Expr::FromRaw("COUNT(*) > 1"))
+                .OrderByRaw("a")
                 .Limit(10)
                 .Offset(5)
                 .ToString(),
@@ -92,34 +107,41 @@ TEST(Select, AllClauses) {
 }
 
 TEST(Select, MissingSelectThrows) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
   SelectExpr s = From(tbl);
   EXPECT_THROW(s.ToString(), std::logic_error);
 }
 
 TEST(SelectFormatted, Basic) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").ToStringFormatted(), "SELECT\n"
-                                                       "    *\n"
-                                                       "FROM\n"
-                                                       "    test");
+  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).ToStringFormatted(),
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    test");
 }
 
 TEST(SelectFormatted, MultiSelect) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select({"a", "b"}).ToStringFormatted(), "SELECT\n"
-                                                              "    a,\n"
-                                                              "    b\n"
-                                                              "FROM\n"
-                                                              "    test");
+  EXPECT_EQ(From(tbl)
+                .Select({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .ToStringFormatted(),
+            "SELECT\n"
+            "    a,\n"
+            "    b\n"
+            "FROM\n"
+            "    test");
 }
 
 TEST(SelectFormatted, Where) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").Where("a = b").ToStringFormatted(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .Where(Expr::FromRaw("a = b"))
+                .ToStringFormatted(),
             "SELECT\n"
             "    *\n"
             "FROM\n"
@@ -129,12 +151,12 @@ TEST(SelectFormatted, Where) {
 }
 
 TEST(SelectFormatted, GroupByHaving) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(From(tbl)
-                .Select("a")
-                .GroupBy({"a", "b"})
-                .Having(Expr("COUNT(*)") > 1)
+                .Select(Expr::FromRaw("a"))
+                .GroupByRaw({"a", "b"})
+                .Having(Expr::FromRaw("COUNT(*)") > 1)
                 .ToStringFormatted(),
             "SELECT\n"
             "    a\n"
@@ -148,9 +170,12 @@ TEST(SelectFormatted, GroupByHaving) {
 }
 
 TEST(SelectFormatted, OrderByMulti) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToStringFormatted(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .OrderByRaw({"name", "age"})
+                .ToStringFormatted(),
             "SELECT\n"
             "    *\n"
             "FROM\n"
@@ -161,9 +186,13 @@ TEST(SelectFormatted, OrderByMulti) {
 }
 
 TEST(SelectFormatted, LimitOffset) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select("*").Limit(10).Offset(5).ToStringFormatted(),
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .Limit(10)
+                .Offset(5)
+                .ToStringFormatted(),
             "SELECT\n"
             "    *\n"
             "FROM\n"
@@ -175,171 +204,183 @@ TEST(SelectFormatted, LimitOffset) {
 }
 
 TEST(SelectFormatted, MissingSelectThrows) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
   SelectExpr s = From(tbl);
   EXPECT_THROW(s.ToStringFormatted(), std::logic_error);
 }
 
 TEST(Delete, From) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(DeleteFrom(tbl).ToString(), "DELETE FROM test");
 }
 
 TEST(Delete, Where) {
-  Table tbl("test");
+  Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(DeleteFrom(tbl).Where("a = 1").ToString(),
+  EXPECT_EQ(DeleteFrom(tbl).Where(Expr::FromRaw("a = 1")).ToString(),
             "DELETE FROM test WHERE a = 1");
 }
 
 TEST(Join, Inner) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
   EXPECT_EQ(Join(tbl1, tbl2, Inner()).ToString(), "foo INNER JOIN bar");
 }
 
 TEST(Join, Cross) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
   EXPECT_EQ(Join(tbl1, tbl2, Cross()).ToString(), "foo CROSS JOIN bar");
 }
 
 TEST(Join, On) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
-  EXPECT_EQ(Join(tbl1, tbl2, Cross()).On("foo.a = bar.b").ToString(),
-            "foo CROSS JOIN bar ON foo.a = bar.b");
+  EXPECT_EQ(
+      Join(tbl1, tbl2, Cross()).On(Expr::FromRaw("foo.a = bar.b")).ToString(),
+      "foo CROSS JOIN bar ON foo.a = bar.b");
 }
 
 TEST(Join, LeftOuter) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
   EXPECT_EQ(Join(tbl1, tbl2, LeftOuter()).ToString(),
             "foo LEFT OUTER JOIN bar");
 }
 
 TEST(Join, RightOuter) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
   EXPECT_EQ(Join(tbl1, tbl2, RightOuter()).ToString(),
             "foo RIGHT OUTER JOIN bar");
 }
 
 TEST(Join, FullOuter) {
-  Table tbl1("foo");
-  Table tbl2("bar");
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
 
   EXPECT_EQ(Join(tbl1, tbl2, FullOuter()).ToString(),
             "foo FULL OUTER JOIN bar");
 }
 
 TEST(SetOp, Union) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(
-      SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Union()).ToString(),
-      "(SELECT a FROM foo) UNION (SELECT b FROM foo)");
+  EXPECT_EQ(SetOp(From(tbl).Select(Expr::FromRaw("a")),
+                  From(tbl).Select(Expr::FromRaw("b")), Union())
+                .ToString(),
+            "(SELECT a FROM foo) UNION (SELECT b FROM foo)");
 }
 
 TEST(SetOp, UnionAll) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), UnionAll())
+  EXPECT_EQ(SetOp(From(tbl).Select(Expr::FromRaw("a")),
+                  From(tbl).Select(Expr::FromRaw("b")), UnionAll())
                 .ToString(),
             "(SELECT a FROM foo) UNION ALL (SELECT b FROM foo)");
 }
 
 TEST(SetOp, Intersect) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Intersect())
+  EXPECT_EQ(SetOp(From(tbl).Select(Expr::FromRaw("a")),
+                  From(tbl).Select(Expr::FromRaw("b")), Intersect())
                 .ToString(),
             "(SELECT a FROM foo) INTERSECT (SELECT b FROM foo)");
 }
 
 TEST(SetOp, Except) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(
-      SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Except()).ToString(),
-      "(SELECT a FROM foo) EXCEPT (SELECT b FROM foo)");
+  EXPECT_EQ(SetOp(From(tbl).Select(Expr::FromRaw("a")),
+                  From(tbl).Select(Expr::FromRaw("b")), Except())
+                .ToString(),
+            "(SELECT a FROM foo) EXCEPT (SELECT b FROM foo)");
 }
 
 TEST(SetOp, UsableAsSubquery) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(
-      Expr("x")
-          .In(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Union()))
-          .ToString(),
-      "x IN ((SELECT a FROM foo) UNION (SELECT b FROM foo))");
+  EXPECT_EQ(Expr::FromRaw("x")
+                .In(SetOp(From(tbl).Select(Expr::FromRaw("a")),
+                          From(tbl).Select(Expr::FromRaw("b")), Union()))
+                .ToString(),
+            "x IN ((SELECT a FROM foo) UNION (SELECT b FROM foo))");
 }
 
 TEST(With, Single) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(With("cte", From(tbl).Select("a"))
-                .Main(From(Table("cte")).Select("*"))
+  EXPECT_EQ(WithRaw("cte", From(tbl).Select(Expr::FromRaw("a")))
+                .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*")))
                 .ToString(),
             "WITH cte AS (SELECT a FROM foo) SELECT * FROM cte");
 }
 
 TEST(With, Chained) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(With("a", From(tbl).Select("x"))
-                .With("b", From(tbl).Select("y"))
-                .Main(From(Table("a")).Select("*"))
+  EXPECT_EQ(WithRaw("a", From(tbl).Select(Expr::FromRaw("x")))
+                .WithRaw("b", From(tbl).Select(Expr::FromRaw("y")))
+                .Main(From(Table::FromRaw("a")).Select(Expr::FromRaw("*")))
                 .ToString(),
             "WITH a AS (SELECT x FROM foo), b AS (SELECT y FROM foo) "
             "SELECT * FROM a");
 }
 
 TEST(With, UsableAsSubquery) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(Expr("x")
-                .In(With("cte", From(tbl).Select("a"))
-                        .Main(From(Table("cte")).Select("*")))
-                .ToString(),
-            "x IN (WITH cte AS (SELECT a FROM foo) SELECT * FROM cte)");
+  EXPECT_EQ(
+      Expr::FromRaw("x")
+          .In(WithRaw("cte", From(tbl).Select(Expr::FromRaw("a")))
+                  .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*"))))
+          .ToString(),
+      "x IN (WITH cte AS (SELECT a FROM foo) SELECT * FROM cte)");
 }
 
 TEST(Join, SelectSelect) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(Join(From(tbl).Select("a"), From(tbl).Select("b"), Cross())
-                .On("a = b")
+  EXPECT_EQ(Join(From(tbl).Select(Expr::FromRaw("a")),
+                 From(tbl).Select(Expr::FromRaw("b")), Cross())
+                .On(Expr::FromRaw("a = b"))
                 .ToString(),
             "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
 }
 
 TEST(Insert, Basic) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(InsertInto(tbl).Columns({"a", "b"}).Values({1, 2}).ToString(),
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Values({1, 2})
+                .ToString(),
             "INSERT INTO foo (a, b) VALUES (1, 2)");
 }
 
 TEST(Insert, MissingColumnsThrows) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
   EXPECT_THROW(InsertInto(tbl).Values({1, 2}).ToString(), std::logic_error);
 }
 
 TEST(Insert, MissingValuesThrows) {
-  Table tbl("foo");
-  EXPECT_THROW(InsertInto(tbl).Columns({"a", "b"}).ToString(),
+  Table tbl = Table::FromRaw("foo");
+  EXPECT_THROW(InsertInto(tbl)
+                   .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                   .ToString(),
                std::logic_error);
 }
 
 TEST(Update, Basic) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
   Column age{"age", "BIGINT"};
 
   EXPECT_EQ(Update(tbl).Set(age, 42).Where(age == 1).ToString(),
@@ -347,19 +388,23 @@ TEST(Update, Basic) {
 }
 
 TEST(Update, MultiSet) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(Update(tbl).Set("a", 1).Set("b", 2).ToString(),
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("a"), 1)
+                .Set(Expr::FromRaw("b"), 2)
+                .ToString(),
             "UPDATE foo SET a = 1, b = 2");
 }
 
 TEST(Update, MissingSetThrows) {
-  Table tbl("foo");
-  EXPECT_THROW(Update(tbl).Where("a = 1").ToString(), std::logic_error);
+  Table tbl = Table::FromRaw("foo");
+  EXPECT_THROW(Update(tbl).Where(Expr::FromRaw("a = 1")).ToString(),
+               std::logic_error);
 }
 
 TEST(Column, Select) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
   Column name{"name", "TEXT"};
   Column age{"age", "BIGINT"};
 
@@ -368,11 +413,11 @@ TEST(Column, Select) {
 }
 
 TEST(Column, As) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
   Column name{"name", "TEXT"};
 
   auto bar = "bar";
-  EXPECT_EQ(From(tbl.As(bar)).Select(Expr(bar).Dot(name)).ToString(),
+  EXPECT_EQ(From(tbl.As(bar)).Select(Expr::FromRaw(bar).Dot(name)).ToString(),
             "SELECT bar.name FROM (foo AS bar)");
 }
 
@@ -390,23 +435,26 @@ TEST(Column, Compare) {
 TEST(TableWithColumns, Simple) {
   Column name{"name", "TEXT"};
   Column age{"age", "BIGINT"};
-  TableWithColumns tbl("foo", {name, age});
+  TableWithColumns tbl = TableWithColumns::FromRaw("foo", {name, age});
 
   EXPECT_EQ(From(tbl).Select(tbl.SelectArgAll()).ToString(),
             "SELECT name, age FROM foo");
 }
 
 TEST(Expr, symbol) {
-  EXPECT_EQ(Expr("x").ToString(), "x");
-  EXPECT_EQ(Expr(std::string("x")).ToString(), "x");
+  EXPECT_EQ(Expr::FromRaw("x").ToString(), "x");
+  EXPECT_EQ(Expr::FromRaw(std::string("x")).ToString(), "x");
   EXPECT_EQ(Expr(1).ToString(), "1");
 }
 
 TEST(Expr, Logical) {
-  EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == "age")).ToString(),
+  EXPECT_EQ(((Expr(1) < 2) && (Expr(2) == Expr::FromRaw("age"))).ToString(),
             "1 < 2 AND 2 = age");
-  EXPECT_EQ(((Expr("x") && Expr("y")) || Expr("z")).ToString(), "x AND y OR z");
-  EXPECT_EQ(((Expr("x") || Expr("y")) && Expr("z")).ToString(),
+  EXPECT_EQ(((Expr::FromRaw("x") && Expr::FromRaw("y")) || Expr::FromRaw("z"))
+                .ToString(),
+            "x AND y OR z");
+  EXPECT_EQ(((Expr::FromRaw("x") || Expr::FromRaw("y")) && Expr::FromRaw("z"))
+                .ToString(),
             "(x OR y) AND z");
 }
 
@@ -422,49 +470,64 @@ TEST(Expr, Not) {
   EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
 }
 
-TEST(Expr, Dot) { EXPECT_EQ(Expr("foo").Dot("bar").ToString(), "foo.bar"); }
+TEST(Expr, Dot) {
+  EXPECT_EQ(Expr::FromRaw("foo").Dot(Expr::FromRaw("bar")).ToString(),
+            "foo.bar");
+}
 
 TEST(Expr, Cast) {
-  EXPECT_EQ(Expr("1").Cast("TEXT").ToString(), "CAST (1 AS TEXT)");
+  EXPECT_EQ(Expr::FromRaw("1").CastRaw("TEXT").ToString(), "CAST (1 AS TEXT)");
 }
 
 TEST(Expr, Collate) {
-  EXPECT_EQ(Expr("a").Collate(R"("C")").ToString(), R"(a COLLATE "C")");
+  EXPECT_EQ(Expr::FromRaw("a").CollateRaw(R"("C")").ToString(),
+            R"(a COLLATE "C")");
 }
 
-TEST(Expr, Index) { EXPECT_EQ(Expr("a")["b"].ToString(), "a[b]"); }
+TEST(Expr, Index) {
+  EXPECT_EQ(Expr::FromRaw("a")[Expr::FromRaw("b")].ToString(), "a[b]");
+}
 
-TEST(Expr, Exp) { EXPECT_EQ((Expr("a") ^ 2).ToString(), "a ^ 2"); }
+TEST(Expr, Exp) { EXPECT_EQ((Expr::FromRaw("a") ^ 2).ToString(), "a ^ 2"); }
 
 TEST(Expr, Between) {
-  EXPECT_EQ(Expr("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2");
+  EXPECT_EQ(Expr::FromRaw("a").Between(1, 2).ToString(), "a BETWEEN 1 AND 2");
 }
 
 TEST(Expr, NotBetween) {
-  EXPECT_EQ(Expr("a").NotBetween(1, 2).ToString(), "a NOT BETWEEN 1 AND 2");
+  EXPECT_EQ(Expr::FromRaw("a").NotBetween(1, 2).ToString(),
+            "a NOT BETWEEN 1 AND 2");
 }
 
-TEST(Expr, Like) { EXPECT_EQ(Expr("a").Like("a%b").ToString(), "a LIKE a%b"); }
+TEST(Expr, Like) {
+  EXPECT_EQ(Expr::FromRaw("a").Like(Expr::FromRaw("a%b")).ToString(),
+            "a LIKE a%b");
+}
 
 TEST(Expr, NotLike) {
-  EXPECT_EQ(Expr("a").NotLike("a%b").ToString(), "a NOT LIKE a%b");
+  EXPECT_EQ(Expr::FromRaw("a").NotLike(Expr::FromRaw("a%b")).ToString(),
+            "a NOT LIKE a%b");
 }
 
 TEST(Expr, In) {
-  EXPECT_EQ(Expr("a").In(From(Table("foo")).Select("bar")).ToString(),
+  EXPECT_EQ(Expr::FromRaw("a")
+                .In(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
+                .ToString(),
             "a IN (SELECT bar FROM foo)");
 }
 
 TEST(Expr, NotIn) {
-  EXPECT_EQ(Expr("a").NotIn(From(Table("foo")).Select("bar")).ToString(),
+  EXPECT_EQ(Expr::FromRaw("a")
+                .NotIn(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
+                .ToString(),
             "a NOT IN (SELECT bar FROM foo)");
 }
 
 TEST(Expr, Is) {
-  EXPECT_EQ(Expr("a").IsTrue().ToString(), "a IS TRUE");
-  EXPECT_EQ(Expr("a").IsFalse().ToString(), "a IS FALSE");
-  EXPECT_EQ(Expr("a").IsNull().ToString(), "a IS NULL");
-  EXPECT_EQ(Expr("a").IsNotNull().ToString(), "a IS NOT NULL");
+  EXPECT_EQ(Expr::FromRaw("a").IsTrue().ToString(), "a IS TRUE");
+  EXPECT_EQ(Expr::FromRaw("a").IsFalse().ToString(), "a IS FALSE");
+  EXPECT_EQ(Expr::FromRaw("a").IsNull().ToString(), "a IS NULL");
+  EXPECT_EQ(Expr::FromRaw("a").IsNotNull().ToString(), "a IS NOT NULL");
 }
 
 TEST(Expr, Compare) {
@@ -485,30 +548,36 @@ TEST(Expr, Ident) {
 }
 
 TEST(Expr, Call) {
-  EXPECT_EQ(Expr::Call("COALESCE", {"a", "b"}).ToString(), "COALESCE(a, b)");
-  EXPECT_EQ(Expr::Call("NOW", {}).ToString(), "NOW()");
-  EXPECT_EQ(Expr::Call("ABS", {Expr(1) - 2}).ToString(), "ABS(1 - 2)");
+  EXPECT_EQ(Expr::CallRaw("COALESCE", {Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .ToString(),
+            "COALESCE(a, b)");
+  EXPECT_EQ(Expr::CallRaw("NOW", {}).ToString(), "NOW()");
+  EXPECT_EQ(Expr::CallRaw("ABS", {Expr(1) - 2}).ToString(), "ABS(1 - 2)");
 }
 
 TEST(Expr, Case) {
-  EXPECT_EQ(Case().When(Expr("a") == 1).Then("x").End().ToString(),
+  EXPECT_EQ(Case()
+                .When(Expr::FromRaw("a") == 1)
+                .Then(Expr::FromRaw("x"))
+                .End()
+                .ToString(),
             "CASE WHEN a = 1 THEN x END");
 }
 
 TEST(Expr, CaseMultiWhenElse) {
   EXPECT_EQ(Case()
-                .When(Expr("a") == 1)
-                .Then("x")
-                .When(Expr("a") == 2)
-                .Then("y")
-                .Else("z")
+                .When(Expr::FromRaw("a") == 1)
+                .Then(Expr::FromRaw("x"))
+                .When(Expr::FromRaw("a") == 2)
+                .Then(Expr::FromRaw("y"))
+                .Else(Expr::FromRaw("z"))
                 .End()
                 .ToString(),
             "CASE WHEN a = 1 THEN x WHEN a = 2 THEN y ELSE z END");
 }
 
 TEST(Expr, CaseThenWithoutWhenThrows) {
-  EXPECT_THROW(Case().Then("x"), std::logic_error);
+  EXPECT_THROW(Case().Then(Expr::FromRaw("x")), std::logic_error);
 }
 
 TEST(Expr, CaseEndWithoutWhenThrows) {
@@ -516,11 +585,11 @@ TEST(Expr, CaseEndWithoutWhenThrows) {
 }
 
 TEST(Expr, Exists) {
-  Table tbl("foo");
+  Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(Expr::Exists(From(tbl).Select("1")).ToString(),
+  EXPECT_EQ(Expr::Exists(From(tbl).Select(Expr::FromRaw("1"))).ToString(),
             "EXISTS (SELECT 1 FROM foo)");
-  EXPECT_EQ(Expr::NotExists(From(tbl).Select("1")).ToString(),
+  EXPECT_EQ(Expr::NotExists(From(tbl).Select(Expr::FromRaw("1"))).ToString(),
             "NOT EXISTS (SELECT 1 FROM foo)");
 }
 
@@ -537,7 +606,9 @@ TEST(Expr, Aggregates) {
 
 TEST(Expr, LiteralInjectionAttempt) {
   // Even a hostile value can't break out of the quoted literal.
-  EXPECT_EQ(Expr("x").In(Expr::Literal("'; DROP TABLE users; --")).ToString(),
+  EXPECT_EQ(Expr::FromRaw("x")
+                .In(Expr::Literal("'; DROP TABLE users; --"))
+                .ToString(),
             "x IN '''; DROP TABLE users; --'");
 }
 
@@ -556,7 +627,7 @@ const std::vector<Column> kAll = {
 };
 
 // The table itself
-const TableWithColumns kTable("users", kAll);
+const TableWithColumns kTable = TableWithColumns::FromRaw("users", kAll);
 
 // TODO: unable to create table fields with name "table" or "all", hmm...
 
