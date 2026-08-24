@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
-#include <sql_builder_pp.hpp>
+#include <iron_query/iron_query.hpp>
 
-using namespace sql_builder_pp;
+using namespace iron_query;
 
 TEST(Select, From) {
   Table tbl("test");
