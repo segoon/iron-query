@@ -159,9 +159,9 @@ TEST(Join, FullOuter) {
 TEST(SetOp, Union) {
   Table tbl("foo");
 
-  EXPECT_EQ(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Union())
-                .ToString(),
-            "(SELECT a FROM foo) UNION (SELECT b FROM foo)");
+  EXPECT_EQ(
+      SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Union()).ToString(),
+      "(SELECT a FROM foo) UNION (SELECT b FROM foo)");
 }
 
 TEST(SetOp, UnionAll) {
@@ -183,18 +183,49 @@ TEST(SetOp, Intersect) {
 TEST(SetOp, Except) {
   Table tbl("foo");
 
-  EXPECT_EQ(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Except())
-                .ToString(),
-            "(SELECT a FROM foo) EXCEPT (SELECT b FROM foo)");
+  EXPECT_EQ(
+      SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Except()).ToString(),
+      "(SELECT a FROM foo) EXCEPT (SELECT b FROM foo)");
 }
 
 TEST(SetOp, UsableAsSubquery) {
   Table tbl("foo");
 
-  EXPECT_EQ(Expr("x").In(SetOp(From(tbl).Select("a"), From(tbl).Select("b"),
-                                Union()))
+  EXPECT_EQ(
+      Expr("x")
+          .In(SetOp(From(tbl).Select("a"), From(tbl).Select("b"), Union()))
+          .ToString(),
+      "x IN ((SELECT a FROM foo) UNION (SELECT b FROM foo))");
+}
+
+TEST(With, Single) {
+  Table tbl("foo");
+
+  EXPECT_EQ(With("cte", From(tbl).Select("a"))
+                .Main(From(Table("cte")).Select("*"))
                 .ToString(),
-            "x IN ((SELECT a FROM foo) UNION (SELECT b FROM foo))");
+            "WITH cte AS (SELECT a FROM foo) SELECT * FROM cte");
+}
+
+TEST(With, Chained) {
+  Table tbl("foo");
+
+  EXPECT_EQ(With("a", From(tbl).Select("x"))
+                .With("b", From(tbl).Select("y"))
+                .Main(From(Table("a")).Select("*"))
+                .ToString(),
+            "WITH a AS (SELECT x FROM foo), b AS (SELECT y FROM foo) "
+            "SELECT * FROM a");
+}
+
+TEST(With, UsableAsSubquery) {
+  Table tbl("foo");
+
+  EXPECT_EQ(Expr("x")
+                .In(With("cte", From(tbl).Select("a"))
+                        .Main(From(Table("cte")).Select("*")))
+                .ToString(),
+            "x IN (WITH cte AS (SELECT a FROM foo) SELECT * FROM cte)");
 }
 
 TEST(Join, SelectSelect) {
@@ -374,6 +405,51 @@ TEST(Expr, Call) {
   EXPECT_EQ(Expr::Call("COALESCE", {"a", "b"}).ToString(), "COALESCE(a, b)");
   EXPECT_EQ(Expr::Call("NOW", {}).ToString(), "NOW()");
   EXPECT_EQ(Expr::Call("ABS", {Expr(1) - 2}).ToString(), "ABS(1 - 2)");
+}
+
+TEST(Expr, Case) {
+  EXPECT_EQ(Case().When(Expr("a") == 1).Then("x").End().ToString(),
+            "CASE WHEN a = 1 THEN x END");
+}
+
+TEST(Expr, CaseMultiWhenElse) {
+  EXPECT_EQ(Case()
+                .When(Expr("a") == 1)
+                .Then("x")
+                .When(Expr("a") == 2)
+                .Then("y")
+                .Else("z")
+                .End()
+                .ToString(),
+            "CASE WHEN a = 1 THEN x WHEN a = 2 THEN y ELSE z END");
+}
+
+TEST(Expr, CaseThenWithoutWhenThrows) {
+  EXPECT_THROW(Case().Then("x"), std::logic_error);
+}
+
+TEST(Expr, CaseEndWithoutWhenThrows) {
+  EXPECT_THROW(Case().End(), std::logic_error);
+}
+
+TEST(Expr, Exists) {
+  Table tbl("foo");
+
+  EXPECT_EQ(Expr::Exists(From(tbl).Select("1")).ToString(),
+            "EXISTS (SELECT 1 FROM foo)");
+  EXPECT_EQ(Expr::NotExists(From(tbl).Select("1")).ToString(),
+            "NOT EXISTS (SELECT 1 FROM foo)");
+}
+
+TEST(Expr, Aggregates) {
+  Column age{"age", "BIGINT"};
+
+  EXPECT_EQ(Expr::Count(age).ToString(), "COUNT(age)");
+  EXPECT_EQ(Expr::CountAll().ToString(), "COUNT(*)");
+  EXPECT_EQ(Expr::Sum(age).ToString(), "SUM(age)");
+  EXPECT_EQ(Expr::Avg(age).ToString(), "AVG(age)");
+  EXPECT_EQ(Expr::Min(age).ToString(), "MIN(age)");
+  EXPECT_EQ(Expr::Max(age).ToString(), "MAX(age)");
 }
 
 TEST(Expr, LiteralInjectionAttempt) {

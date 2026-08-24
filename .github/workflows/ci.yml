@@ -30,6 +30,23 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtest-dev clang-format clang-tidy
+
+      - name: clang-format
+        run: clang-format --dry-run --Werror include/* tests/*
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: clang-tidy
+        run: clang-tidy -p build tests/test.cpp
+
   sanitizers:
     runs-on: ubuntu-latest
     steps:

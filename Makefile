@@ -22,4 +22,4 @@ clean:
 
 .PHONY: format
 format:
-	$(CLANG_FORMAT) -i include/* src/*
+	$(CLANG_FORMAT) -i include/* tests/*

@@ -31,6 +31,8 @@ enum class OperatorPrecedence {
   kExtract, // pseudo precedence for "no brackets"
 };
 
+class VirtualTable;
+
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
 public:
@@ -95,6 +97,25 @@ public:
     s += ")";
     return Expr(std::move(s), OperatorPrecedence::kSymbol);
   }
+
+  /// @brief EXISTS (subquery). Defined below, after VirtualTable.
+  static Expr Exists(const VirtualTable &subquery);
+
+  /// @brief NOT EXISTS (subquery). Defined below, after VirtualTable.
+  static Expr NotExists(const VirtualTable &subquery);
+
+  static Expr Count(const Expr &arg) { return Call("COUNT", {arg}); }
+
+  /// @brief COUNT(*), since "*" is not a valid Expr argument.
+  static Expr CountAll() { return Expr("COUNT(*)"); }
+
+  static Expr Sum(const Expr &arg) { return Call("SUM", {arg}); }
+
+  static Expr Avg(const Expr &arg) { return Call("AVG", {arg}); }
+
+  static Expr Min(const Expr &arg) { return Call("MIN", {arg}); }
+
+  static Expr Max(const Expr &arg) { return Call("MAX", {arg}); }
 
   Expr Dot(const Expr &other) const {
     return Expr(Extract(OperatorPrecedence::kDot) + "." +
@@ -189,8 +210,8 @@ public:
   }
 
   Expr operator<=(const Expr &other) const {
-    return Expr(Extract(OperatorPrecedence::kCompare) + " <= " +
-                    other.Extract(OperatorPrecedence::kCompare),
+    return Expr(Extract(OperatorPrecedence::kCompare) +
+                    " <= " + other.Extract(OperatorPrecedence::kCompare),
                 OperatorPrecedence::kCompare);
   }
 
@@ -201,8 +222,8 @@ public:
   }
 
   Expr operator>=(const Expr &other) const {
-    return Expr(Extract(OperatorPrecedence::kCompare) + " >= " +
-                    other.Extract(OperatorPrecedence::kCompare),
+    return Expr(Extract(OperatorPrecedence::kCompare) +
+                    " >= " + other.Extract(OperatorPrecedence::kCompare),
                 OperatorPrecedence::kCompare);
   }
 
@@ -213,8 +234,8 @@ public:
   }
 
   Expr operator!=(const Expr &other) const {
-    return Expr(Extract(OperatorPrecedence::kCompare) + " != " +
-                    other.Extract(OperatorPrecedence::kCompare),
+    return Expr(Extract(OperatorPrecedence::kCompare) +
+                    " != " + other.Extract(OperatorPrecedence::kCompare),
                 OperatorPrecedence::kCompare);
   }
 
@@ -268,8 +289,7 @@ public:
   std::string Extract(OperatorPrecedence precedence) const {
     if (precedence_ >= precedence)
       return "(" + expr_ + ")";
-    else
-      return expr_;
+    return expr_;
   }
 
   std::string ToString() const { return Extract(OperatorPrecedence::kExtract); }
@@ -278,6 +298,56 @@ private:
   OperatorPrecedence precedence_;
   std::string expr_;
 };
+
+/// @brief Transitional representation for CASE WHEN ... END
+class [[nodiscard]] CaseBuilder final {
+public:
+  CaseBuilder() = default;
+
+  CaseBuilder When(Expr cond) && {
+    if (has_pending_when_)
+      throw std::logic_error(
+          "sql_builder_pp: When() called twice without a matching Then()");
+    pending_when_ = cond.ToString();
+    has_pending_when_ = true;
+    return std::move(*this);
+  }
+
+  CaseBuilder Then(Expr result) && {
+    if (!has_pending_when_)
+      throw std::logic_error("sql_builder_pp: Then() called without a "
+                             "preceding When()");
+    whens_ += "WHEN " + pending_when_ + " THEN " + result.ToString() + " ";
+    has_pending_when_ = false;
+    return std::move(*this);
+  }
+
+  CaseBuilder Else(Expr result) && {
+    else_ = result.ToString();
+    return std::move(*this);
+  }
+
+  Expr End() const {
+    if (whens_.empty())
+      throw std::logic_error(
+          "sql_builder_pp: CASE requires at least one When()/Then() pair");
+
+    std::string s = "CASE " + whens_;
+    if (!else_.empty())
+      s += "ELSE " + else_ + " ";
+    s += "END";
+    return Expr(std::move(s), OperatorPrecedence::kSymbol);
+  }
+
+private:
+  std::string whens_;
+  std::string pending_when_;
+  std::string else_;
+  bool has_pending_when_{false};
+};
+
+/// @brief Handy fabric for @ref CaseBuilder
+CaseBuilder Case() { return CaseBuilder(); }
 
 /// @brief A synonym for $1
 const Expr _1 = "$1";
@@ -314,7 +384,7 @@ public:
 
   Table As(std::string_view name) const;
 
-  operator Expr() && {
+  operator Expr() const && {
     return Expr(ToStringBracketed(), OperatorPrecedence::kSymbol);
   }
 };
@@ -337,6 +407,16 @@ private:
 
 inline Table VirtualTable::As(std::string_view name) const {
   return Table("(" + ToStringBracketed() + " AS " + std::string(name) + ")");
+}
+
+inline Expr Expr::Exists(const VirtualTable &subquery) {
+  return Expr("EXISTS " + subquery.ToStringBracketed(),
+              OperatorPrecedence::kSymbol);
+}
+
+inline Expr Expr::NotExists(const VirtualTable &subquery) {
+  return Expr("NOT EXISTS " + subquery.ToStringBracketed(),
+              OperatorPrecedence::kSymbol);
 }
 
 /// @brief Transitional representation for SELECT query
@@ -614,6 +694,46 @@ private:
   std::string kind_;
   std::string a_, b_;
 };
+
+/// @brief Finalized WITH ... query, usable anywhere a VirtualTable is
+/// (subquery, FROM source, etc.)
+class [[nodiscard]] WithQuery final : public VirtualTable {
+public:
+  WithQuery(std::string ctes, std::string main)
+      : ctes_(std::move(ctes)), main_(std::move(main)) {}
+
+  std::string ToString() const override {
+    return "WITH " + ctes_ + " " + main_;
+  }
+
+private:
+  std::string ctes_;
+  std::string main_;
+};
+
+/// @brief Transitional representation for a WITH clause being built up
+class [[nodiscard]] WithBuilder final {
+public:
+  WithBuilder(std::string name, const VirtualTable &query)
+      : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
+
+  WithBuilder With(std::string name, const VirtualTable &query) && {
+    ctes_ += ", " + std::move(name) + " AS " + query.ToStringBracketed();
+    return std::move(*this);
+  }
+
+  WithQuery Main(const VirtualTable &query) && {
+    return WithQuery(std::move(ctes_), query.ToString());
+  }
+
+private:
+  std::string ctes_;
+};
+
+/// @brief Handy fabric for @ref WithBuilder
+WithBuilder With(std::string name, const VirtualTable &query) {
+  return WithBuilder(std::move(name), query);
+}
 
 // userver (???) PostgreSQL part:
 
