@@ -25,6 +25,8 @@ A SQL query builder for C++.
 * When fixing a bug, search for similar bugs in the nearby code.
 * When found a bug, elaborate whether it is possible to redesign the system to make such bugs impossible
 
+* Prefer `auto` for auto deduced types
+
 ## Comments
 
 * Code comments have to describe "why", not "how".

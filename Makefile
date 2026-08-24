@@ -1,6 +1,6 @@
 CLANG_FORMAT = clang-format
 CLANG_TIDY = clang-tidy
-SOURCES := $(wildcard include/iron_query/* src/* tests/*)
+SOURCES := $(wildcard include/iron_query/* src/*.cpp src/detail/* tests/*)
 SANITIZE_FLAGS = -fsanitize=address,undefined
 
 .PHONY: build

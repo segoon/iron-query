@@ -1,3 +1,4 @@
-- userver wrappers
-- example project
-- split the god header into small headers
+- userver header
+- example with userver
+- example with raw libpq (?)
+- CI check is required
