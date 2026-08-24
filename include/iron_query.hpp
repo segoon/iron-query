@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-namespace sql_builder_pp {
+namespace iron_query {
 
 // From
 // https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-PRECEDENCE
@@ -52,7 +52,7 @@ public:
   static Expr Literal(const std::string &value) {
     if (value.find('\0') != std::string::npos)
       throw std::invalid_argument(
-          "sql_builder_pp: string literal must not contain NUL bytes");
+          "iron_query: string literal must not contain NUL bytes");
 
     std::string escaped = "'";
     for (char c : value) {
@@ -71,7 +71,7 @@ public:
   static Expr Ident(const std::string &name) {
     if (name.find('\0') != std::string::npos)
       throw std::invalid_argument(
-          "sql_builder_pp: identifier must not contain NUL bytes");
+          "iron_query: identifier must not contain NUL bytes");
 
     std::string escaped = "\"";
     for (char c : name) {
@@ -307,7 +307,7 @@ public:
   CaseBuilder When(Expr cond) && {
     if (has_pending_when_)
       throw std::logic_error(
-          "sql_builder_pp: When() called twice without a matching Then()");
+          "iron_query: When() called twice without a matching Then()");
     pending_when_ = cond.ToString();
     has_pending_when_ = true;
     return std::move(*this);
@@ -315,7 +315,7 @@ public:
 
   CaseBuilder Then(Expr result) && {
     if (!has_pending_when_)
-      throw std::logic_error("sql_builder_pp: Then() called without a "
+      throw std::logic_error("iron_query: Then() called without a "
                              "preceding When()");
     whens_ += "WHEN " + pending_when_ + " THEN " + result.ToString() + " ";
     has_pending_when_ = false;
@@ -330,7 +330,7 @@ public:
   Expr End() const {
     if (whens_.empty())
       throw std::logic_error(
-          "sql_builder_pp: CASE requires at least one When()/Then() pair");
+          "iron_query: CASE requires at least one When()/Then() pair");
 
     std::string s = "CASE " + whens_;
     if (!else_.empty())
@@ -488,9 +488,9 @@ public:
 
   std::string ToString() const override {
     if (select_.empty())
-      throw std::logic_error("sql_builder_pp: SELECT clause is not set");
+      throw std::logic_error("iron_query: SELECT clause is not set");
     if (from_.empty())
-      throw std::logic_error("sql_builder_pp: FROM clause is not set");
+      throw std::logic_error("iron_query: FROM clause is not set");
 
     auto s = "SELECT " + select_ + " FROM " + from_;
     if (!where_.empty())
@@ -534,7 +534,7 @@ public:
 
   std::string ToString() const override {
     if (from_.empty())
-      throw std::logic_error("sql_builder_pp: FROM clause is not set");
+      throw std::logic_error("iron_query: FROM clause is not set");
 
     auto s = "DELETE FROM " + from_;
     if (!where_.empty())
@@ -572,9 +572,9 @@ public:
 
   std::string ToString() const {
     if (columns_.empty())
-      throw std::logic_error("sql_builder_pp: no columns to insert into");
+      throw std::logic_error("iron_query: no columns to insert into");
     if (values_.empty())
-      throw std::logic_error("sql_builder_pp: no values to insert");
+      throw std::logic_error("iron_query: no values to insert");
 
     return "INSERT INTO " + into_ + " (" + columns_ + ") VALUES (" + values_ +
            ")";
@@ -605,7 +605,7 @@ public:
 
   std::string ToString() const {
     if (set_.empty())
-      throw std::logic_error("sql_builder_pp: SET clause is not set");
+      throw std::logic_error("iron_query: SET clause is not set");
 
     auto s = "UPDATE " + table_ + " SET " + set_;
     if (!where_.empty())
@@ -817,4 +817,4 @@ private:
   std::string alias_;
 };
 
-} // namespace sql_builder_pp
+} // namespace iron_query

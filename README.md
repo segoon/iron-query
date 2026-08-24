@@ -1,4 +1,4 @@
-# SQL query builder++
+# IronQuery
 
 This is a header-only SQL query builder for C++.
 Note: this is NOT an ORM!
@@ -39,9 +39,9 @@ you probably don't needd SQL query builder.
 The builder library is header-only, so you just include the header and use it:
 
 ```cpp
-#include <sql_builder_pp.hpp>
+#include <iron_query.hpp>
 
-using namespace sql_builder_pp;
+using namespace iron_query;
 
 ...
 Table users("users");
