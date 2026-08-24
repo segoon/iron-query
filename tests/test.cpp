@@ -97,6 +97,89 @@ TEST(Select, MissingSelectThrows) {
   EXPECT_THROW(s.ToString(), std::logic_error);
 }
 
+TEST(SelectFormatted, Basic) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl).Select("*").ToStringFormatted(), "SELECT\n"
+                                                       "    *\n"
+                                                       "FROM\n"
+                                                       "    test");
+}
+
+TEST(SelectFormatted, MultiSelect) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl).Select({"a", "b"}).ToStringFormatted(), "SELECT\n"
+                                                              "    a,\n"
+                                                              "    b\n"
+                                                              "FROM\n"
+                                                              "    test");
+}
+
+TEST(SelectFormatted, Where) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl).Select("*").Where("a = b").ToStringFormatted(),
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    test\n"
+            "WHERE\n"
+            "    a = b");
+}
+
+TEST(SelectFormatted, GroupByHaving) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl)
+                .Select("a")
+                .GroupBy({"a", "b"})
+                .Having(Expr("COUNT(*)") > 1)
+                .ToStringFormatted(),
+            "SELECT\n"
+            "    a\n"
+            "FROM\n"
+            "    test\n"
+            "GROUP BY\n"
+            "    a,\n"
+            "    b\n"
+            "HAVING\n"
+            "    COUNT(*) > 1");
+}
+
+TEST(SelectFormatted, OrderByMulti) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl).Select("*").OrderBy({"name", "age"}).ToStringFormatted(),
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    test\n"
+            "ORDER BY\n"
+            "    name,\n"
+            "    age");
+}
+
+TEST(SelectFormatted, LimitOffset) {
+  Table tbl("test");
+
+  EXPECT_EQ(From(tbl).Select("*").Limit(10).Offset(5).ToStringFormatted(),
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    test\n"
+            "LIMIT\n"
+            "    10\n"
+            "OFFSET\n"
+            "    5");
+}
+
+TEST(SelectFormatted, MissingSelectThrows) {
+  Table tbl("test");
+  SelectExpr s = From(tbl);
+  EXPECT_THROW(s.ToStringFormatted(), std::logic_error);
+}
+
 TEST(Delete, From) {
   Table tbl("test");
 

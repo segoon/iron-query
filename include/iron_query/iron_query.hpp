@@ -244,17 +244,15 @@ class Table;
 /// materialized view, etc.
 class [[nodiscard]] VirtualTable {
 public:
-  // TODO: formatted string, e.g.:
-  //
-  // FROM
-  //     users
-  // SELECT
-  //     a,
-  //     b
-  // WHERE
-  //     a > b
-  /// @brief Renders this table value as SQL text.
+  /// @brief Renders this table value as single-line SQL text. See also @ref
+  /// ToStringFormatted for a multi-line, indented rendering.
   virtual std::string ToString() const = 0;
+
+  /// @brief Renders this table value as multi-line, indented SQL text for
+  /// readability (e.g. logging/debugging a generated query). Defaults to
+  /// @ref ToString; overridden by @ref SelectExpr to lay out each clause on
+  /// its own line.
+  virtual std::string ToStringFormatted() const;
 
   /// @brief Renders this table value as SQL text, parenthesized so it can be
   /// safely embedded as a subquery. Overridden by @ref Table to skip
@@ -326,13 +324,29 @@ public:
   /// @throws std::logic_error if the SELECT or FROM clause was not set.
   std::string ToString() const override;
 
+  /// @brief Renders the query with each clause on its own line, indented,
+  /// e.g.:
+  /// ```
+  /// SELECT
+  ///     a,
+  ///     b
+  /// FROM
+  ///     users
+  /// WHERE
+  ///     a > b
+  /// ```
+  /// @throws std::logic_error if the SELECT or FROM clause was not set.
+  std::string ToStringFormatted() const override;
+
 private:
+  void EnsureValid() const;
+
   std::string from_;
-  std::string select_;
+  std::vector<std::string> select_;
   std::string where_;
-  std::string group_by_;
+  std::vector<std::string> group_by_;
   std::string having_;
-  std::string order_by_;
+  std::vector<std::string> order_by_;
   std::string limit_;
   std::string offset_;
 };

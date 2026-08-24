@@ -317,6 +317,8 @@ const Expr _10 = "$10";
 // VirtualTable / Table
 // ---------------------------------------------------------------------------
 
+std::string VirtualTable::ToStringFormatted() const { return ToString(); }
+
 std::string VirtualTable::ToStringBracketed() const {
   return "(" + ToString() + ")";
 }
@@ -345,16 +347,13 @@ std::string Table::ToStringBracketed() const {
 SelectExpr::SelectExpr(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
 
 SelectExpr SelectExpr::Select(Expr exp) && {
-  select_ = exp.ToString();
+  select_ = {exp.ToString()};
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Select(std::initializer_list<Expr> exps) && {
-  for (const auto &exp : exps) {
-    if (!select_.empty())
-      select_ += ", ";
-    select_ += exp.ToString();
-  }
+  for (const auto &exp : exps)
+    select_.push_back(exp.ToString());
   return std::move(*this);
 }
 
@@ -364,30 +363,24 @@ SelectExpr SelectExpr::Where(Expr exp) && {
 }
 
 SelectExpr SelectExpr::OrderBy(std::string_view by) && {
-  order_by_ = by;
+  order_by_ = {std::string(by)};
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::OrderBy(std::initializer_list<std::string_view> by) && {
-  for (const auto &arg : by) {
-    if (!order_by_.empty())
-      order_by_ += ", ";
-    order_by_ += arg;
-  }
+  for (const auto &arg : by)
+    order_by_.emplace_back(arg);
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::GroupBy(std::string_view by) && {
-  group_by_ = by;
+  group_by_ = {std::string(by)};
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::GroupBy(std::initializer_list<std::string_view> by) && {
-  for (const auto &arg : by) {
-    if (!group_by_.empty())
-      group_by_ += ", ";
-    group_by_ += arg;
-  }
+  for (const auto &arg : by)
+    group_by_.emplace_back(arg);
   return std::move(*this);
 }
 
@@ -406,25 +399,72 @@ SelectExpr SelectExpr::Offset(int offset) && {
   return std::move(*this);
 }
 
-std::string SelectExpr::ToString() const {
+namespace {
+
+std::string JoinCsv(const std::vector<std::string> &items) {
+  std::string s;
+  for (const auto &item : items) {
+    if (!s.empty())
+      s += ", ";
+    s += item;
+  }
+  return s;
+}
+
+std::string JoinCsvIndented(const std::vector<std::string> &items) {
+  std::string s;
+  for (const auto &item : items) {
+    if (!s.empty())
+      s += ",\n";
+    s += "    " + item;
+  }
+  return s;
+}
+
+} // namespace
+
+void SelectExpr::EnsureValid() const {
   if (select_.empty())
     throw std::logic_error("iron_query: SELECT clause is not set");
   if (from_.empty())
     throw std::logic_error("iron_query: FROM clause is not set");
+}
 
-  auto s = "SELECT " + select_ + " FROM " + from_;
+std::string SelectExpr::ToString() const {
+  EnsureValid();
+
+  auto s = "SELECT " + JoinCsv(select_) + " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
   if (!group_by_.empty())
-    s += " GROUP BY " + group_by_;
+    s += " GROUP BY " + JoinCsv(group_by_);
   if (!having_.empty())
     s += " HAVING " + having_;
   if (!order_by_.empty())
-    s += " ORDER BY " + order_by_;
+    s += " ORDER BY " + JoinCsv(order_by_);
   if (!limit_.empty())
     s += " LIMIT " + limit_;
   if (!offset_.empty())
     s += " OFFSET " + offset_;
+  return s;
+}
+
+std::string SelectExpr::ToStringFormatted() const {
+  EnsureValid();
+
+  auto s = "SELECT\n" + JoinCsvIndented(select_) + "\nFROM\n    " + from_;
+  if (!where_.empty())
+    s += "\nWHERE\n    " + where_;
+  if (!group_by_.empty())
+    s += "\nGROUP BY\n" + JoinCsvIndented(group_by_);
+  if (!having_.empty())
+    s += "\nHAVING\n    " + having_;
+  if (!order_by_.empty())
+    s += "\nORDER BY\n" + JoinCsvIndented(order_by_);
+  if (!limit_.empty())
+    s += "\nLIMIT\n    " + limit_;
+  if (!offset_.empty())
+    s += "\nOFFSET\n    " + offset_;
   return s;
 }
 
