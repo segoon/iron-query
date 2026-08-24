@@ -1,7 +1,10 @@
 CLANG_FORMAT = clang-format
+CLANG_TIDY = clang-tidy
+SOURCES := $(wildcard include/iron_query/* src/* tests/*)
+SANITIZE_FLAGS = -fsanitize=address,undefined
 
 .PHONY: build
-test:
+test: format-check
 	mkdir -p build
 	cd build && cmake ..
 	cd build && make -j12
@@ -11,8 +14,8 @@ test:
 sanitize:
 	mkdir -p build-sanitize
 	cd build-sanitize && cmake -DCMAKE_BUILD_TYPE=Debug \
-		-DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-		-DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" ..
+		-DCMAKE_CXX_FLAGS="$(SANITIZE_FLAGS) -fno-omit-frame-pointer" \
+		-DCMAKE_EXE_LINKER_FLAGS="$(SANITIZE_FLAGS)" ..
 	cd build-sanitize && make -j12
 	cd build-sanitize && ./test
 
@@ -22,4 +25,14 @@ clean:
 
 .PHONY: format
 format:
-	$(CLANG_FORMAT) -i include/iron_query/* src/* tests/*
+	$(CLANG_FORMAT) -i $(SOURCES)
+
+.PHONY: format-check
+format-check:
+	$(CLANG_FORMAT) --dry-run --Werror $(SOURCES)
+
+.PHONY: tidy
+tidy:
+	mkdir -p build
+	cd build && cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+	$(CLANG_TIDY) -p build $(filter %.cpp,$(SOURCES))
