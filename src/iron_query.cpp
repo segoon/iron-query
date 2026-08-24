@@ -1,6 +1,40 @@
 #include <iron_query/iron_query.hpp>
 
+#include <cctype>
+
 namespace iron_query {
+
+namespace {
+
+bool IsPlainIdentifier(std::string_view s) {
+  if (s.empty())
+    return false;
+  if (!std::isalpha(static_cast<unsigned char>(s[0])) && s[0] != '_')
+    return false;
+  for (char c : s.substr(1)) {
+    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
+      return false;
+  }
+  return true;
+}
+
+// Validates `s` as a plain or dot-qualified SQL identifier, e.g. "name" or
+// "schema.name".
+void ValidateIdentifier(std::string_view s) {
+  std::size_t start = 0;
+  while (true) {
+    std::size_t dot = s.find('.', start);
+    std::string_view part = s.substr(start, dot - start);
+    if (!IsPlainIdentifier(part))
+      throw std::invalid_argument("iron_query: invalid identifier: " +
+                                  std::string(s));
+    if (dot == std::string_view::npos)
+      break;
+    start = dot + 1;
+  }
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Expr
@@ -50,7 +84,8 @@ Expr Expr::Ident(const std::string &name) {
   return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::CallRaw(const std::string &name, std::initializer_list<Expr> args) {
+Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
+  ValidateIdentifier(name);
   std::string s = name + "(";
   bool first = true;
   for (const auto &arg : args) {
@@ -73,17 +108,17 @@ Condition Expr::NotExists(const VirtualTable &subquery) {
                    OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::Count(const Expr &arg) { return CallRaw("COUNT", {arg}); }
+Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
 
 Expr Expr::CountAll() { return Expr("COUNT(*)"); }
 
-Expr Expr::Sum(const Expr &arg) { return CallRaw("SUM", {arg}); }
+Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
 
-Expr Expr::Avg(const Expr &arg) { return CallRaw("AVG", {arg}); }
+Expr Expr::Avg(const Expr &arg) { return Call("AVG", {arg}); }
 
-Expr Expr::Min(const Expr &arg) { return CallRaw("MIN", {arg}); }
+Expr Expr::Min(const Expr &arg) { return Call("MIN", {arg}); }
 
-Expr Expr::Max(const Expr &arg) { return CallRaw("MAX", {arg}); }
+Expr Expr::Max(const Expr &arg) { return Call("MAX", {arg}); }
 
 Expr Expr::Dot(const Expr &other) const {
   return Expr(Extract(OperatorPrecedence::kDot) + "." +
@@ -97,8 +132,9 @@ Expr Expr::CastRaw(const std::string &type) const {
               OperatorPrecedence::kTypecast);
 }
 
-Expr Expr::CollateRaw(const std::string &collation) const {
-  return Expr(Extract(OperatorPrecedence::kCollate) + " COLLATE " + collation,
+Expr Expr::Collate(const Collation &collation) const {
+  return Expr(Extract(OperatorPrecedence::kCollate) + " COLLATE " +
+                  collation.ToString(),
               OperatorPrecedence::kCollate);
 }
 
@@ -330,6 +366,9 @@ Expr CaseBuilder::End() const {
 
 CaseBuilder Case() { return CaseBuilder(); }
 
+OrderByTerm::OrderByTerm(Expr expr, SortDirection direction)
+    : expr(std::move(expr)), direction(direction) {}
+
 const Expr _1 = Expr::FromRaw("$1");
 const Expr _2 = Expr::FromRaw("$2");
 const Expr _3 = Expr::FromRaw("$3");
@@ -393,27 +432,36 @@ SelectExpr SelectExpr::Where(Condition exp) && {
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::OrderByRaw(std::string_view by) && {
-  order_by_ = {std::string(by)};
+namespace {
+
+std::string OrderByTermToString(const OrderByTerm &term) {
+  std::string s = term.expr.ToString();
+  if (term.direction == SortDirection::kDescending)
+    s += " DESC";
+  return s;
+}
+
+} // namespace
+
+SelectExpr SelectExpr::OrderBy(OrderByTerm term) && {
+  order_by_ = {OrderByTermToString(term)};
   return std::move(*this);
 }
 
-SelectExpr
-SelectExpr::OrderByRaw(std::initializer_list<std::string_view> by) && {
-  for (const auto &arg : by)
-    order_by_.emplace_back(arg);
+SelectExpr SelectExpr::OrderBy(std::initializer_list<OrderByTerm> terms) && {
+  for (const auto &term : terms)
+    order_by_.push_back(OrderByTermToString(term));
   return std::move(*this);
 }
 
-SelectExpr SelectExpr::GroupByRaw(std::string_view by) && {
-  group_by_ = {std::string(by)};
+SelectExpr SelectExpr::GroupBy(Expr exp) && {
+  group_by_ = {exp.ToString()};
   return std::move(*this);
 }
 
-SelectExpr
-SelectExpr::GroupByRaw(std::initializer_list<std::string_view> by) && {
-  for (const auto &arg : by)
-    group_by_.emplace_back(arg);
+SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
+  for (const auto &exp : exps)
+    group_by_.push_back(exp.ToString());
   return std::move(*this);
 }
 
@@ -587,6 +635,18 @@ std::string Update::ToString() const {
 }
 
 // ---------------------------------------------------------------------------
+// Collation
+// ---------------------------------------------------------------------------
+
+Collation::Collation(std::string name) : name_(std::move(name)) {}
+
+Collation Collation::FromRaw(std::string name) {
+  return Collation(std::move(name));
+}
+
+std::string Collation::ToString() const { return name_; }
+
+// ---------------------------------------------------------------------------
 // JoinKind implementations
 // ---------------------------------------------------------------------------
 
@@ -650,8 +710,9 @@ std::string WithQuery::ToString() const {
 WithBuilder::WithBuilder(std::string name, const VirtualTable &query)
     : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
 
-WithBuilder WithBuilder::WithRaw(std::string name,
-                                 const VirtualTable &query) && {
+WithBuilder WithBuilder::With(std::string name,
+                              const VirtualTable &query) && {
+  ValidateIdentifier(name);
   ctes_ += ", " + std::move(name) + " AS " + query.ToStringBracketed();
   return std::move(*this);
 }
@@ -660,7 +721,8 @@ WithQuery WithBuilder::Main(const VirtualTable &query) && {
   return WithQuery(std::move(ctes_), query.ToString());
 }
 
-WithBuilder WithRaw(std::string name, const VirtualTable &query) {
+WithBuilder With(std::string name, const VirtualTable &query) {
+  ValidateIdentifier(name);
   return WithBuilder(std::move(name), query);
 }
 
@@ -733,7 +795,8 @@ Expr TableWithColumns::SelectArgAll() const {
 
 TableAlias::TableAlias(std::string_view alias) : alias_(alias) {}
 
-TableAlias TableAlias::FromRaw(std::string_view alias) {
+TableAlias TableAlias::From(std::string_view alias) {
+  ValidateIdentifier(alias);
   return TableAlias(alias);
 }
 

@@ -39,8 +39,9 @@ TEST(Select, Where) {
 TEST(Select, OrderBy) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).OrderByRaw("name").ToString(),
-            "SELECT * FROM test ORDER BY name");
+  EXPECT_EQ(
+      From(tbl).Select(Expr::FromRaw("*")).OrderBy(Expr::FromRaw("name")).ToString(),
+      "SELECT * FROM test ORDER BY name");
 }
 
 TEST(Select, OrderByMulti) {
@@ -48,9 +49,20 @@ TEST(Select, OrderByMulti) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("*"))
-                .OrderByRaw({"name", "age"})
+                .OrderBy({Expr::FromRaw("name"), Expr::FromRaw("age")})
                 .ToString(),
             "SELECT * FROM test ORDER BY name, age");
+}
+
+TEST(Select, OrderByDescending) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .OrderBy({Expr::FromRaw("name"),
+                          {Expr::FromRaw("age"), SortDirection::kDescending}})
+                .ToString(),
+            "SELECT * FROM test ORDER BY name, age DESC");
 }
 
 TEST(Select, Full) {
@@ -59,7 +71,7 @@ TEST(Select, Full) {
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a, b"))
                 .Where(Condition::FromRaw("a = b"))
-                .OrderByRaw("name")
+                .OrderBy(Expr::FromRaw("name"))
                 .ToString(),
             "SELECT a, b FROM test WHERE a = b ORDER BY name");
 }
@@ -69,7 +81,7 @@ TEST(Select, GroupByHaving) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a, COUNT(*)"))
-                .GroupByRaw("a")
+                .GroupBy(Expr::FromRaw("a"))
                 .Having(Expr::FromRaw("COUNT(*)") > 1)
                 .ToString(),
             "SELECT a, COUNT(*) FROM test GROUP BY a HAVING COUNT(*) > 1");
@@ -78,9 +90,11 @@ TEST(Select, GroupByHaving) {
 TEST(Select, GroupByMulti) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(
-      From(tbl).Select(Expr::FromRaw("*")).GroupByRaw({"a", "b"}).ToString(),
-      "SELECT * FROM test GROUP BY a, b");
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .GroupBy({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .ToString(),
+            "SELECT * FROM test GROUP BY a, b");
 }
 
 TEST(Select, LimitOffset) {
@@ -96,9 +110,9 @@ TEST(Select, AllClauses) {
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a"))
                 .Where(Condition::FromRaw("a > 0"))
-                .GroupByRaw("a")
+                .GroupBy(Expr::FromRaw("a"))
                 .Having(Condition::FromRaw("COUNT(*) > 1"))
-                .OrderByRaw("a")
+                .OrderBy(Expr::FromRaw("a"))
                 .Limit(10)
                 .Offset(5)
                 .ToString(),
@@ -155,7 +169,7 @@ TEST(SelectFormatted, GroupByHaving) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("a"))
-                .GroupByRaw({"a", "b"})
+                .GroupBy({Expr::FromRaw("a"), Expr::FromRaw("b")})
                 .Having(Expr::FromRaw("COUNT(*)") > 1)
                 .ToStringFormatted(),
             "SELECT\n"
@@ -174,7 +188,7 @@ TEST(SelectFormatted, OrderByMulti) {
 
   EXPECT_EQ(From(tbl)
                 .Select(Expr::FromRaw("*"))
-                .OrderByRaw({"name", "age"})
+                .OrderBy({Expr::FromRaw("name"), Expr::FromRaw("age")})
                 .ToStringFormatted(),
             "SELECT\n"
             "    *\n"
@@ -319,7 +333,7 @@ TEST(SetOp, UsableAsSubquery) {
 TEST(With, Single) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(WithRaw("cte", From(tbl).Select(Expr::FromRaw("a")))
+  EXPECT_EQ(With("cte", From(tbl).Select(Expr::FromRaw("a")))
                 .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*")))
                 .ToString(),
             "WITH cte AS (SELECT a FROM foo) SELECT * FROM cte");
@@ -328,8 +342,8 @@ TEST(With, Single) {
 TEST(With, Chained) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(WithRaw("a", From(tbl).Select(Expr::FromRaw("x")))
-                .WithRaw("b", From(tbl).Select(Expr::FromRaw("y")))
+  EXPECT_EQ(With("a", From(tbl).Select(Expr::FromRaw("x")))
+                .With("b", From(tbl).Select(Expr::FromRaw("y")))
                 .Main(From(Table::FromRaw("a")).Select(Expr::FromRaw("*")))
                 .ToString(),
             "WITH a AS (SELECT x FROM foo), b AS (SELECT y FROM foo) "
@@ -341,10 +355,26 @@ TEST(With, UsableAsSubquery) {
 
   EXPECT_EQ(
       Expr::FromRaw("x")
-          .In(WithRaw("cte", From(tbl).Select(Expr::FromRaw("a")))
+          .In(With("cte", From(tbl).Select(Expr::FromRaw("a")))
                   .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*"))))
           .ToString(),
       "x IN (WITH cte AS (SELECT a FROM foo) SELECT * FROM cte)");
+}
+
+TEST(With, InvalidNameThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(With("not an identifier", From(tbl).Select(Expr::FromRaw("a"))),
+               std::invalid_argument);
+}
+
+TEST(With, DottedNameAllowed) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(With("my_schema.cte", From(tbl).Select(Expr::FromRaw("a")))
+                .Main(From(tbl).Select(Expr::FromRaw("*")))
+                .ToString(),
+            "WITH my_schema.cte AS (SELECT a FROM foo) SELECT * FROM foo");
 }
 
 TEST(Join, SelectSelect) {
@@ -442,6 +472,19 @@ TEST(TableWithColumns, Simple) {
             "SELECT name, age FROM foo");
 }
 
+TEST(TableAlias, Dot) {
+  TableAlias alias = TableAlias::From("bar");
+  Column name{"name", "TEXT"};
+
+  EXPECT_EQ(alias.Dot("name"), "bar.name");
+  EXPECT_EQ(alias.Dot(name), "bar.name");
+}
+
+TEST(TableAlias, InvalidNameThrows) {
+  EXPECT_THROW(TableAlias::From("not an identifier"), std::invalid_argument);
+  EXPECT_THROW(TableAlias::From(""), std::invalid_argument);
+}
+
 TEST(Expr, symbol) {
   EXPECT_EQ(Expr::FromRaw("x").ToString(), "x");
   EXPECT_EQ(Expr::FromRaw(std::string("x")).ToString(), "x");
@@ -483,7 +526,7 @@ TEST(Expr, Cast) {
 }
 
 TEST(Expr, Collate) {
-  EXPECT_EQ(Expr::FromRaw("a").CollateRaw(R"("C")").ToString(),
+  EXPECT_EQ(Expr::FromRaw("a").Collate(Collation::FromRaw(R"("C")")).ToString(),
             R"(a COLLATE "C")");
 }
 
@@ -572,11 +615,17 @@ TEST(Expr, Ident) {
 }
 
 TEST(Expr, Call) {
-  EXPECT_EQ(Expr::CallRaw("COALESCE", {Expr::FromRaw("a"), Expr::FromRaw("b")})
+  EXPECT_EQ(Expr::Call("COALESCE", {Expr::FromRaw("a"), Expr::FromRaw("b")})
                 .ToString(),
             "COALESCE(a, b)");
-  EXPECT_EQ(Expr::CallRaw("NOW", {}).ToString(), "NOW()");
-  EXPECT_EQ(Expr::CallRaw("ABS", {Expr(1) - 2}).ToString(), "ABS(1 - 2)");
+  EXPECT_EQ(Expr::Call("NOW", {}).ToString(), "NOW()");
+  EXPECT_EQ(Expr::Call("ABS", {Expr(1) - 2}).ToString(), "ABS(1 - 2)");
+  EXPECT_EQ(Expr::Call("pg_catalog.now", {}).ToString(), "pg_catalog.now()");
+}
+
+TEST(Expr, CallInvalidNameThrows) {
+  EXPECT_THROW(Expr::Call("not an identifier", {}), std::invalid_argument);
+  EXPECT_THROW(Expr::Call("", {}), std::invalid_argument);
 }
 
 TEST(Expr, Case) {

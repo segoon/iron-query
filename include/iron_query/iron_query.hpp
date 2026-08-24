@@ -35,6 +35,7 @@ enum class OperatorPrecedence {
 
 class VirtualTable;
 class Condition;
+class Collation;
 
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
@@ -64,11 +65,11 @@ public:
   /// developer-written literal.
   static Expr Ident(const std::string &name);
 
-  /// @brief Builds a function call expression, e.g. Expr::CallRaw("COALESCE",
-  /// {a, b}) -> "COALESCE(a, b)". `name` is a trusted, developer-written SQL
-  /// fragment inserted verbatim; never pass untrusted/dynamic data here.
-  static Expr CallRaw(const std::string &name,
-                      std::initializer_list<Expr> args);
+  /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
+  /// {a, b}) -> "COALESCE(a, b)". `name` must be a valid (optionally dotted,
+  /// e.g. "pg_catalog.now") SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
   /// @brief EXISTS (subquery).
   static Condition Exists(const VirtualTable &subquery);
@@ -102,10 +103,8 @@ public:
   /// untrusted/dynamic data here.
   Expr CastRaw(const std::string &type) const;
 
-  /// @brief `this COLLATE collation`. `collation` is a trusted,
-  /// developer-written SQL fragment inserted verbatim; never pass
-  /// untrusted/dynamic data here.
-  Expr CollateRaw(const std::string &collation) const;
+  /// @brief `this COLLATE collation`.
+  Expr Collate(const Collation &collation) const;
 
   /// @brief Array/index access: `this[other]`.
   Expr operator[](const Expr &other) const;
@@ -276,6 +275,24 @@ private:
 /// @brief Handy fabric for @ref CaseBuilder
 CaseBuilder Case();
 
+/// @brief Sort direction for a single ORDER BY term. See @ref OrderByTerm.
+enum class SortDirection {
+  kAscending,
+  kDescending,
+};
+
+/// @brief A single ORDER BY term: an expression plus its sort direction.
+/// Implicitly constructible from just an @ref Expr for the common ascending
+/// case, e.g. `OrderBy({col1, {col2, SortDirection::kDescending}})`.
+struct [[nodiscard]] OrderByTerm final {
+  /// @brief Wraps `expr` with the given sort `direction` (ascending by
+  /// default).
+  OrderByTerm(Expr expr, SortDirection direction = SortDirection::kAscending);
+
+  Expr expr;
+  SortDirection direction;
+};
+
 /// @brief A synonym for $1
 extern const Expr _1;
 extern const Expr _2;
@@ -353,23 +370,18 @@ public:
   /// @brief Sets the WHERE clause.
   SelectExpr Where(Condition exp) &&;
 
-  /// @brief Sets the ORDER BY clause to a single trusted, developer-written
-  /// expression, inserted verbatim. Never pass untrusted/dynamic data here.
-  SelectExpr OrderByRaw(std::string_view by) &&;
+  /// @brief Sets the ORDER BY clause to a single term.
+  SelectExpr OrderBy(OrderByTerm term) &&;
 
-  /// @brief Sets the ORDER BY clause to a comma-separated list of trusted,
-  /// developer-written expressions, inserted verbatim. Never pass
-  /// untrusted/dynamic data here.
-  SelectExpr OrderByRaw(std::initializer_list<std::string_view> by) &&;
+  /// @brief Sets the ORDER BY clause to a comma-separated list of terms.
+  SelectExpr OrderBy(std::initializer_list<OrderByTerm> terms) &&;
 
-  /// @brief Sets the GROUP BY clause to a single trusted, developer-written
-  /// expression, inserted verbatim. Never pass untrusted/dynamic data here.
-  SelectExpr GroupByRaw(std::string_view by) &&;
+  /// @brief Sets the GROUP BY clause to a single expression.
+  SelectExpr GroupBy(Expr exp) &&;
 
-  /// @brief Sets the GROUP BY clause to a comma-separated list of trusted,
-  /// developer-written expressions, inserted verbatim. Never pass
-  /// untrusted/dynamic data here.
-  SelectExpr GroupByRaw(std::initializer_list<std::string_view> by) &&;
+  /// @brief Sets the GROUP BY clause to a comma-separated list of
+  /// expressions.
+  SelectExpr GroupBy(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the HAVING clause.
   SelectExpr Having(Condition exp) &&;
@@ -473,6 +485,22 @@ private:
   std::string where_;
 };
 
+/// @brief A collation name for use with @ref Expr::Collate.
+class [[nodiscard]] Collation final {
+public:
+  /// @brief Wraps a trusted, developer-written collation name verbatim.
+  /// Never pass untrusted/dynamic data here.
+  static Collation FromRaw(std::string name);
+
+  /// @brief Renders the collation name as SQL text.
+  std::string ToString() const;
+
+private:
+  Collation(std::string name);
+
+  std::string name_;
+};
+
 /// @brief Kind of SQL JOIN, e.g. @ref Inner or @ref LeftOuter.
 struct [[nodiscard]] JoinKind {
   /// @brief The SQL keyword(s) for this join kind, e.g. "INNER".
@@ -569,10 +597,10 @@ private:
 /// @brief Transitional representation for a WITH clause being built up
 class [[nodiscard]] WithBuilder final {
 public:
-  /// @brief Adds another CTE: `, name AS (query)`. `name` is a trusted,
-  /// developer-written identifier inserted verbatim; never pass
-  /// untrusted/dynamic data here.
-  WithBuilder WithRaw(std::string name, const VirtualTable &query) &&;
+  /// @brief Adds another CTE: `, name AS (query)`. `name` must be a valid
+  /// (optionally dotted) SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  WithBuilder With(std::string name, const VirtualTable &query) &&;
 
   /// @brief Finalizes the WITH clause with the main query that follows it.
   WithQuery Main(const VirtualTable &query) &&;
@@ -583,13 +611,13 @@ private:
 
   std::string ctes_;
 
-  friend WithBuilder WithRaw(std::string name, const VirtualTable &query);
+  friend WithBuilder With(std::string name, const VirtualTable &query);
 };
 
-/// @brief Handy fabric for @ref WithBuilder. `name` is a trusted,
-/// developer-written identifier inserted verbatim; never pass
-/// untrusted/dynamic data here.
-WithBuilder WithRaw(std::string name, const VirtualTable &query);
+/// @brief Handy fabric for @ref WithBuilder. `name` must be a valid
+/// (optionally dotted) SQL identifier.
+/// @throws std::invalid_argument if `name` is not a valid identifier.
+WithBuilder With(std::string name, const VirtualTable &query);
 
 // userver (???) PostgreSQL part:
 
@@ -647,9 +675,10 @@ private:
 /// `alias.column`.
 class [[nodiscard]] TableAlias final {
 public:
-  /// @brief Wraps a trusted, developer-written alias name, inserted
-  /// verbatim. Never pass untrusted/dynamic data here.
-  static TableAlias FromRaw(std::string_view alias);
+  /// @brief Wraps `alias`, which must be a valid (optionally dotted) SQL
+  /// identifier.
+  /// @throws std::invalid_argument if `alias` is not a valid identifier.
+  static TableAlias From(std::string_view alias);
 
   /// @brief Qualifies a column name as `alias.column`.
   std::string Dot(const std::string &column) const;

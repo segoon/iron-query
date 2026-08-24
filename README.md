@@ -45,8 +45,8 @@ using namespace iron_query;
 
 ...
 Table users = Table::FromRaw("users");
-TableAlias left = TableAlias::FromRaw("left");
-TableAlias right = TableAlias::FromRaw("right");
+TableAlias left = TableAlias::From("left");
+TableAlias right = TableAlias::From("right");
 Column name{"name", "TEXT"};
 Column age{"age", "BIGINT"};
 
@@ -66,10 +66,15 @@ query = DeleteFrom(users).Where(age < 10).ToString();
 `Expr::FromRaw(std::string)` treats its argument as a **trusted, raw SQL fragment** written
 by the developer — it is inserted into the query verbatim, unescaped. The same applies to
 every other `FromRaw`/`*Raw`-named entry point in the API (`Table::FromRaw`,
-`TableAlias::FromRaw`, `TableWithColumns::FromRaw`, `Condition::FromRaw`, `Expr::CastRaw`,
-`Expr::CollateRaw`, `Expr::CallRaw`, `SelectExpr::OrderByRaw`/`GroupByRaw`, `WithRaw`). Never
-pass untrusted/user-controlled data to any of these, or you will have a SQL injection
+`TableWithColumns::FromRaw`, `Condition::FromRaw`, `Expr::CastRaw`, `Collation::FromRaw`).
+Never pass untrusted/user-controlled data to any of these, or you will have a SQL injection
 vulnerability.
+
+A few other entry points take identifier-like arguments (`Expr::Call`'s function name,
+`With`'s CTE name, `TableAlias::From`'s alias) and validate them as a plain or
+dot-qualified SQL identifier, throwing `std::invalid_argument` otherwise — these are safer
+to feed with dynamic input than the raw fragments above, though `Expr::Ident` is still the
+right choice for column/table names that need proper quoting.
 
 `WHERE`/`HAVING`/`ON`/`WHEN` all take a `Condition`, not a plain `Expr`, so a non-boolean
 expression (`Where(age)`, `Where(age + 1)`) won't compile — this is a syntax-role check,
