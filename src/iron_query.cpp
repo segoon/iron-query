@@ -9,7 +9,8 @@ namespace iron_query {
 Expr::Expr(std::string s)
     : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
 
-Expr::Expr(const char *s) : expr_(s), precedence_(OperatorPrecedence::kSymbol) {}
+Expr::Expr(const char *s)
+    : expr_(s), precedence_(OperatorPrecedence::kSymbol) {}
 
 Expr::Expr(int i) : Expr(std::to_string(i)) {}
 
@@ -569,7 +570,9 @@ std::string SetOp::ToString() const { return a_ + " " + kind_ + " " + b_; }
 WithQuery::WithQuery(std::string ctes, std::string main)
     : ctes_(std::move(ctes)), main_(std::move(main)) {}
 
-std::string WithQuery::ToString() const { return "WITH " + ctes_ + " " + main_; }
+std::string WithQuery::ToString() const {
+  return "WITH " + ctes_ + " " + main_;
+}
 
 WithBuilder::WithBuilder(std::string name, const VirtualTable &query)
     : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
@@ -617,11 +620,12 @@ Expr Column::operator!=(const Expr &other) const {
 // TableWithColumns
 // ---------------------------------------------------------------------------
 
-TableWithColumns::TableWithColumns(std::string name, std::vector<Column> columns)
+TableWithColumns::TableWithColumns(std::string name,
+                                   std::vector<Column> columns)
     : Table(std::move(name)), columns_(columns) {}
 
 TableWithColumns::TableWithColumns(std::string name,
-                                    std::initializer_list<Column> columns)
+                                   std::initializer_list<Column> columns)
     : TableWithColumns(std::move(name), std::vector(columns)) {}
 
 Expr TableWithColumns::SelectArgAll() const {
