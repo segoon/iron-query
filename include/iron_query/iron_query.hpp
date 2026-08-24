@@ -34,23 +34,25 @@ enum class OperatorPrecedence {
 };
 
 class VirtualTable;
+class Condition;
+class Collation;
 
 /// @brief Arbitrary SQL expression
 class [[nodiscard]] Expr final {
 public:
-  /// @brief Wraps a trusted, developer-written SQL fragment verbatim.
-  Expr(std::string s);
-
-  /// @brief Wraps a trusted, developer-written SQL fragment verbatim.
-  Expr(const char *s);
-
   /// @brief Wraps an integer literal.
   Expr(int i);
 
-  /// @brief Wraps a trusted SQL fragment together with the precedence of its
-  /// top-level operator, so that @ref Extract can bracket it correctly when
-  /// it is embedded into a higher-precedence expression.
-  Expr(std::string expr, OperatorPrecedence precedence);
+  /// @brief Wraps a trusted, developer-written SQL fragment verbatim. Never
+  /// pass untrusted/dynamic data here — use @ref Literal or @ref Ident
+  /// instead, since this string is inserted into the query unescaped.
+  static Expr FromRaw(std::string s);
+
+  /// @brief Wraps a trusted, developer-written SQL fragment verbatim,
+  /// together with the precedence of its top-level operator, so that @ref
+  /// Extract can bracket it correctly when it is embedded into a
+  /// higher-precedence expression. Never pass untrusted/dynamic data here.
+  static Expr FromRaw(std::string s, OperatorPrecedence precedence);
 
   /// @brief Builds a properly escaped and quoted SQL string literal out of an
   /// arbitrary (possibly untrusted) value. Use this instead of Expr(string)
@@ -64,14 +66,16 @@ public:
   static Expr Ident(const std::string &name);
 
   /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
-  /// {a, b}) -> "COALESCE(a, b)".
+  /// {a, b}) -> "COALESCE(a, b)". `name` must be a valid (optionally dotted,
+  /// e.g. "pg_catalog.now") SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
   /// @brief EXISTS (subquery).
-  static Expr Exists(const VirtualTable &subquery);
+  static Condition Exists(const VirtualTable &subquery);
 
   /// @brief NOT EXISTS (subquery).
-  static Expr NotExists(const VirtualTable &subquery);
+  static Condition NotExists(const VirtualTable &subquery);
 
   /// @brief COUNT(arg).
   static Expr Count(const Expr &arg);
@@ -94,11 +98,13 @@ public:
   /// @brief Member/field access: `this.other`.
   Expr Dot(const Expr &other) const;
 
-  /// @brief SQL type cast: `CAST (this AS type)`.
-  Expr Cast(const std::string &type) const;
+  /// @brief SQL type cast: `CAST (this AS type)`. `type` is a trusted,
+  /// developer-written SQL fragment inserted verbatim; never pass
+  /// untrusted/dynamic data here.
+  Expr CastRaw(const std::string &type) const;
 
   /// @brief `this COLLATE collation`.
-  Expr Collate(const std::string &collation) const;
+  Expr Collate(const Collation &collation) const;
 
   /// @brief Array/index access: `this[other]`.
   Expr operator[](const Expr &other) const;
@@ -107,58 +113,52 @@ public:
   Expr operator^(const Expr &other) const;
 
   /// @brief `this BETWEEN a AND b`.
-  Expr Between(const Expr &a, const Expr &b) const;
+  Condition Between(const Expr &a, const Expr &b) const;
 
   /// @brief `this NOT BETWEEN a AND b`.
-  Expr NotBetween(const Expr &a, const Expr &b) const;
+  Condition NotBetween(const Expr &a, const Expr &b) const;
 
   /// @brief `this LIKE a`.
-  Expr Like(const Expr &a) const;
+  Condition Like(const Expr &a) const;
 
   /// @brief `this NOT LIKE a`.
-  Expr NotLike(const Expr &a) const;
+  Condition NotLike(const Expr &a) const;
 
   /// @brief `this IN a`.
-  Expr In(const Expr &a) const;
+  Condition In(const Expr &a) const;
 
   /// @brief `this NOT IN a`.
-  Expr NotIn(const Expr &a) const;
+  Condition NotIn(const Expr &a) const;
 
   /// @brief `this IS TRUE`.
-  Expr IsTrue() const;
+  Condition IsTrue() const;
 
   /// @brief `this IS FALSE`.
-  Expr IsFalse() const;
+  Condition IsFalse() const;
 
   /// @brief `this IS NULL`.
-  Expr IsNull() const;
+  Condition IsNull() const;
 
   /// @brief `this IS NOT NULL`.
-  Expr IsNotNull() const;
+  Condition IsNotNull() const;
 
   /// @brief `this < other`.
-  Expr operator<(const Expr &other) const;
+  Condition operator<(const Expr &other) const;
 
   /// @brief `this <= other`.
-  Expr operator<=(const Expr &other) const;
+  Condition operator<=(const Expr &other) const;
 
   /// @brief `this > other`.
-  Expr operator>(const Expr &other) const;
+  Condition operator>(const Expr &other) const;
 
   /// @brief `this >= other`.
-  Expr operator>=(const Expr &other) const;
+  Condition operator>=(const Expr &other) const;
 
   /// @brief `this = other`.
-  Expr operator==(const Expr &other) const;
+  Condition operator==(const Expr &other) const;
 
   /// @brief `this != other`.
-  Expr operator!=(const Expr &other) const;
-
-  /// @brief `this OR other`.
-  Expr operator||(const Expr &other) const;
-
-  /// @brief `this AND other`.
-  Expr operator&&(const Expr &other) const;
+  Condition operator!=(const Expr &other) const;
 
   /// @brief `this + other`.
   Expr operator+(const Expr &other) const;
@@ -175,9 +175,6 @@ public:
   /// @brief `this % other`.
   Expr operator%(const Expr &other) const;
 
-  /// @brief `NOT this`.
-  Expr operator!() const;
-
   /// @brief Renders the expression as SQL text, parenthesizing it if its
   /// top-level operator does not bind at least as tightly as `precedence`.
   /// @param precedence The precedence context this expression is being
@@ -190,6 +187,58 @@ public:
   std::string ToString() const;
 
 private:
+  friend class Condition;
+
+  Expr(std::string s);
+  Expr(std::string expr, OperatorPrecedence precedence);
+
+  OperatorPrecedence precedence_;
+  std::string expr_;
+};
+
+/// @brief A boolean-valued SQL predicate, e.g. the result of a comparison,
+/// `LIKE`/`IN`/`BETWEEN`/`IS [NOT] NULL`, `EXISTS`, or a logical combination
+/// of these. Kept distinct from @ref Expr so that predicate-only positions
+/// (`WHERE`, `HAVING`, `ON`, `WHEN`) cannot silently accept a non-boolean
+/// expression, e.g. `Where(age)` or `Where(age + 1)`.
+///
+/// A boolean-valued column or raw expression can be turned into a Condition
+/// explicitly via @ref Expr::IsTrue / @ref Expr::IsFalse / @ref
+/// Expr::IsNotNull, or via @ref Condition::FromRaw for a trusted raw
+/// fragment.
+class [[nodiscard]] Condition final {
+public:
+  /// @brief `this AND other`.
+  Condition operator&&(const Condition &other) const;
+
+  /// @brief `this OR other`.
+  Condition operator||(const Condition &other) const;
+
+  /// @brief `NOT this`.
+  Condition operator!() const;
+
+  /// @brief Wraps a trusted, developer-written SQL predicate verbatim. Never
+  /// pass untrusted/dynamic data here.
+  static Condition FromRaw(std::string s);
+
+  /// @brief Renders the condition as SQL text, parenthesizing it if its
+  /// top-level operator does not bind at least as tightly as `precedence`.
+  std::string Extract(OperatorPrecedence precedence) const;
+
+  /// @brief Renders the condition as a standalone, unparenthesized SQL
+  /// fragment.
+  std::string ToString() const;
+
+  /// @brief Converts this predicate into a value expression, e.g. for
+  /// embedding it where a boolean-valued Expr is expected. Only available on
+  /// rvalues.
+  operator Expr() const &&;
+
+private:
+  friend class Expr;
+
+  Condition(std::string s, OperatorPrecedence precedence);
+
   OperatorPrecedence precedence_;
   std::string expr_;
 };
@@ -203,7 +252,7 @@ public:
   /// @brief Begins a new `WHEN cond` branch.
   /// @throws std::logic_error if called twice in a row without a matching
   /// @ref Then in between.
-  CaseBuilder When(Expr cond) &&;
+  CaseBuilder When(Condition cond) &&;
 
   /// @brief Completes the pending branch as `WHEN cond THEN result`.
   /// @throws std::logic_error if not preceded by @ref When.
@@ -225,6 +274,24 @@ private:
 
 /// @brief Handy fabric for @ref CaseBuilder
 CaseBuilder Case();
+
+/// @brief Sort direction for a single ORDER BY term. See @ref OrderByTerm.
+enum class SortDirection {
+  kAscending,
+  kDescending,
+};
+
+/// @brief A single ORDER BY term: an expression plus its sort direction.
+/// Implicitly constructible from just an @ref Expr for the common ascending
+/// case, e.g. `OrderBy({col1, {col2, SortDirection::kDescending}})`.
+struct [[nodiscard]] OrderByTerm final {
+  /// @brief Wraps `expr` with the given sort `direction` (ascending by
+  /// default).
+  OrderByTerm(Expr expr, SortDirection direction = SortDirection::kAscending);
+
+  Expr expr;
+  SortDirection direction;
+};
 
 /// @brief A synonym for $1
 extern const Expr _1;
@@ -271,13 +338,18 @@ public:
 /// @brief Table with name
 class [[nodiscard]] Table /* not final! */ : public VirtualTable {
 public:
-  /// @brief Wraps a trusted, developer-written table name/reference.
-  Table(std::string name);
+  /// @brief Wraps a trusted, developer-written table name/reference. Never
+  /// pass untrusted/dynamic data here — use @ref Expr::Ident to escape a
+  /// dynamically-sourced name and pass it as an alias/expression instead.
+  static Table FromRaw(std::string name);
 
   std::string ToString() const override;
 
   /// @brief Returns the name as-is: a bare table name never needs brackets.
   std::string ToStringBracketed() const override;
+
+protected:
+  Table(std::string name);
 
 private:
   std::string name_;
@@ -296,24 +368,23 @@ public:
   SelectExpr Select(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the WHERE clause.
-  SelectExpr Where(Expr exp) &&;
+  SelectExpr Where(Condition exp) &&;
 
-  /// @brief Sets the ORDER BY clause to a single (trusted) expression.
-  SelectExpr OrderBy(std::string_view by) &&;
+  /// @brief Sets the ORDER BY clause to a single term.
+  SelectExpr OrderBy(OrderByTerm term) &&;
 
-  /// @brief Sets the ORDER BY clause to a comma-separated list of (trusted)
+  /// @brief Sets the ORDER BY clause to a comma-separated list of terms.
+  SelectExpr OrderBy(std::initializer_list<OrderByTerm> terms) &&;
+
+  /// @brief Sets the GROUP BY clause to a single expression.
+  SelectExpr GroupBy(Expr exp) &&;
+
+  /// @brief Sets the GROUP BY clause to a comma-separated list of
   /// expressions.
-  SelectExpr OrderBy(std::initializer_list<std::string_view> by) &&;
-
-  /// @brief Sets the GROUP BY clause to a single (trusted) expression.
-  SelectExpr GroupBy(std::string_view by) &&;
-
-  /// @brief Sets the GROUP BY clause to a comma-separated list of (trusted)
-  /// expressions.
-  SelectExpr GroupBy(std::initializer_list<std::string_view> by) &&;
+  SelectExpr GroupBy(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the HAVING clause.
-  SelectExpr Having(Expr exp) &&;
+  SelectExpr Having(Condition exp) &&;
 
   /// @brief Sets the LIMIT clause.
   SelectExpr Limit(int limit) &&;
@@ -361,7 +432,7 @@ public:
   DeleteFrom(const Table &tbl);
 
   /// @brief Sets the WHERE clause.
-  DeleteFrom Where(Expr exp) &&;
+  DeleteFrom Where(Condition exp) &&;
 
   /// @throws std::logic_error if the FROM clause was not set.
   std::string ToString() const override;
@@ -403,7 +474,7 @@ public:
   Update Set(const Expr &column, const Expr &value) &&;
 
   /// @brief Sets the WHERE clause.
-  Update Where(Expr exp) &&;
+  Update Where(Condition exp) &&;
 
   /// @throws std::logic_error if no SET assignment was added.
   std::string ToString() const;
@@ -412,6 +483,22 @@ private:
   std::string table_;
   std::string set_;
   std::string where_;
+};
+
+/// @brief A collation name for use with @ref Expr::Collate.
+class [[nodiscard]] Collation final {
+public:
+  /// @brief Wraps a trusted, developer-written collation name verbatim.
+  /// Never pass untrusted/dynamic data here.
+  static Collation FromRaw(std::string name);
+
+  /// @brief Renders the collation name as SQL text.
+  std::string ToString() const;
+
+private:
+  Collation(std::string name);
+
+  std::string name_;
 };
 
 /// @brief Kind of SQL JOIN, e.g. @ref Inner or @ref LeftOuter.
@@ -448,7 +535,7 @@ public:
   Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind);
 
   /// @brief Sets the ON clause.
-  Join On(Expr exp) &&;
+  Join On(Condition exp) &&;
 
   std::string ToString() const override;
 
@@ -510,20 +597,26 @@ private:
 /// @brief Transitional representation for a WITH clause being built up
 class [[nodiscard]] WithBuilder final {
 public:
-  /// @brief Starts a WITH clause with a single CTE: `name AS (query)`.
-  WithBuilder(std::string name, const VirtualTable &query);
-
-  /// @brief Adds another CTE: `, name AS (query)`.
+  /// @brief Adds another CTE: `, name AS (query)`. `name` must be a valid
+  /// (optionally dotted) SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
   WithBuilder With(std::string name, const VirtualTable &query) &&;
 
   /// @brief Finalizes the WITH clause with the main query that follows it.
   WithQuery Main(const VirtualTable &query) &&;
 
 private:
+  /// @brief Starts a WITH clause with a single CTE: `name AS (query)`.
+  WithBuilder(std::string name, const VirtualTable &query);
+
   std::string ctes_;
+
+  friend WithBuilder With(std::string name, const VirtualTable &query);
 };
 
-/// @brief Handy fabric for @ref WithBuilder
+/// @brief Handy fabric for @ref WithBuilder. `name` must be a valid
+/// (optionally dotted) SQL identifier.
+/// @throws std::invalid_argument if `name` is not a valid identifier.
 WithBuilder With(std::string name, const VirtualTable &query);
 
 // userver (???) PostgreSQL part:
@@ -541,33 +634,40 @@ struct [[nodiscard]] Column final {
   operator Expr() const;
 
   /// @brief `this < other`.
-  Expr operator<(const Expr &other) const;
+  Condition operator<(const Expr &other) const;
   /// @brief `this <= other`.
-  Expr operator<=(const Expr &other) const;
+  Condition operator<=(const Expr &other) const;
   /// @brief `this > other`.
-  Expr operator>(const Expr &other) const;
+  Condition operator>(const Expr &other) const;
   /// @brief `this >= other`.
-  Expr operator>=(const Expr &other) const;
+  Condition operator>=(const Expr &other) const;
   /// @brief `this = other`.
-  Expr operator==(const Expr &other) const;
+  Condition operator==(const Expr &other) const;
   /// @brief `this != other`.
-  Expr operator!=(const Expr &other) const;
+  Condition operator!=(const Expr &other) const;
 };
 
 /// @brief Table with associated columns. Usually not created by hands.
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
-  /// @brief Attaches a set of columns to a table name.
-  TableWithColumns(std::string name, std::vector<Column> columns);
+  /// @brief Attaches a set of columns to a trusted, developer-written table
+  /// name. Never pass untrusted/dynamic data as `name`.
+  static TableWithColumns FromRaw(std::string name,
+                                  std::vector<Column> columns);
 
-  /// @brief Attaches a set of columns to a table name.
-  TableWithColumns(std::string name, std::initializer_list<Column> columns);
+  /// @brief Attaches a set of columns to a trusted, developer-written table
+  /// name. Never pass untrusted/dynamic data as `name`.
+  static TableWithColumns FromRaw(std::string name,
+                                  std::initializer_list<Column> columns);
 
   /// @brief Builds a comma-separated Expr listing all column names, for use
   /// as a SELECT list.
   Expr SelectArgAll() const;
 
 private:
+  TableWithColumns(std::string name, std::vector<Column> columns);
+  TableWithColumns(std::string name, std::initializer_list<Column> columns);
+
   std::vector<Column> columns_;
 };
 
@@ -575,8 +675,10 @@ private:
 /// `alias.column`.
 class [[nodiscard]] TableAlias final {
 public:
-  /// @brief Wraps a trusted, developer-written alias name.
-  TableAlias(std::string_view alias);
+  /// @brief Wraps `alias`, which must be a valid (optionally dotted) SQL
+  /// identifier.
+  /// @throws std::invalid_argument if `alias` is not a valid identifier.
+  static TableAlias From(std::string_view alias);
 
   /// @brief Qualifies a column name as `alias.column`.
   std::string Dot(const std::string &column) const;
@@ -585,6 +687,8 @@ public:
   std::string Dot(const Column &column) const;
 
 private:
+  TableAlias(std::string_view alias);
+
   std::string alias_;
 };
 
