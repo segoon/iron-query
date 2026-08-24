@@ -39,9 +39,11 @@ TEST(Select, Where) {
 TEST(Select, OrderBy) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(
-      From(tbl).Select(Expr::FromRaw("*")).OrderBy(Expr::FromRaw("name")).ToString(),
-      "SELECT * FROM test ORDER BY name");
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .OrderBy(Expr::FromRaw("name"))
+                .ToString(),
+            "SELECT * FROM test ORDER BY name");
 }
 
 TEST(Select, OrderByMulti) {

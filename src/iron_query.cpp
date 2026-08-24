@@ -710,8 +710,7 @@ std::string WithQuery::ToString() const {
 WithBuilder::WithBuilder(std::string name, const VirtualTable &query)
     : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
 
-WithBuilder WithBuilder::With(std::string name,
-                              const VirtualTable &query) && {
+WithBuilder WithBuilder::With(std::string name, const VirtualTable &query) && {
   ValidateIdentifier(name);
   ctes_ += ", " + std::move(name) + " AS " + query.ToStringBracketed();
   return std::move(*this);
