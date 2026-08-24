@@ -3,6 +3,8 @@
 This is a header-only SQL query builder for C++.
 Note: this is NOT an ORM!
 
+Licensed under the [Apache License 2.0](LICENSE).
+
 
 # Architectual decisions
 
@@ -56,3 +58,27 @@ std::string query = Join(
 
 query = DeleteFrom(table).Where(age < 10).ToString();
 ```
+
+
+# A note on untrusted input
+
+`Expr(std::string)` / `Expr(const char*)` treat their argument as a **trusted, raw SQL
+fragment** written by the developer — it is inserted into the query verbatim, unescaped.
+Never pass untrusted/user-controlled data to `Expr(string)` directly, or you will have a SQL
+injection vulnerability.
+
+If you need to embed a value or an identifier that isn't a fixed string literal in your code
+(a user-supplied search term, a dynamically chosen sort column, etc.), use the escaping
+factories instead:
+
+```cpp
+// A value: properly single-quoted and escaped.
+Expr::Literal(user_supplied_value)
+
+// An identifier (table/column name): properly double-quoted and escaped.
+Expr::Ident(dynamically_sourced_column_name)
+```
+
+Bind-parameter placeholders (`_1`..`_10`) remain the preferred way to pass values when your
+SQL driver supports parameterized queries — prefer them over `Expr::Literal` whenever
+possible.

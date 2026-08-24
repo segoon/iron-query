@@ -1,7 +1,9 @@
 #pragma once
 
-#include <cassert>
+#include <initializer_list>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace sql_builder_pp {
@@ -42,6 +44,58 @@ public:
   Expr(std::string expr, OperatorPrecedence precedence)
       : expr_(std::move(expr)), precedence_(precedence) {}
 
+  /// @brief Builds a properly escaped and quoted SQL string literal out of an
+  /// arbitrary (possibly untrusted) value. Use this instead of Expr(string)
+  /// whenever the content is not a trusted, developer-written SQL fragment.
+  static Expr Literal(const std::string &value) {
+    if (value.find('\0') != std::string::npos)
+      throw std::invalid_argument(
+          "sql_builder_pp: string literal must not contain NUL bytes");
+
+    std::string escaped = "'";
+    for (char c : value) {
+      if (c == '\'')
+        escaped += '\'';
+      escaped += c;
+    }
+    escaped += "'";
+    return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
+  }
+
+  /// @brief Builds a properly escaped and quoted SQL identifier out of an
+  /// arbitrary (possibly untrusted/dynamic) name. Use this instead of
+  /// Expr(string) whenever a table/column name is not a trusted,
+  /// developer-written literal.
+  static Expr Ident(const std::string &name) {
+    if (name.find('\0') != std::string::npos)
+      throw std::invalid_argument(
+          "sql_builder_pp: identifier must not contain NUL bytes");
+
+    std::string escaped = "\"";
+    for (char c : name) {
+      if (c == '"')
+        escaped += '"';
+      escaped += c;
+    }
+    escaped += "\"";
+    return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
+  }
+
+  /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
+  /// {a, b}) -> "COALESCE(a, b)".
+  static Expr Call(const std::string &name, std::initializer_list<Expr> args) {
+    std::string s = name + "(";
+    bool first = true;
+    for (const auto &arg : args) {
+      if (!first)
+        s += ", ";
+      s += arg.ToString();
+      first = false;
+    }
+    s += ")";
+    return Expr(std::move(s), OperatorPrecedence::kSymbol);
+  }
+
   Expr Dot(const Expr &other) const {
     return Expr(Extract(OperatorPrecedence::kDot) + "." +
                     other.Extract(OperatorPrecedence::kDot),
@@ -77,8 +131,21 @@ public:
                 OperatorPrecedence::kBetween);
   }
 
+  Expr NotBetween(const Expr &a, const Expr &b) const {
+    return Expr(Extract(OperatorPrecedence::kBetween) + " NOT BETWEEN " +
+                    a.Extract(OperatorPrecedence::kBetween) + " AND " +
+                    b.Extract(OperatorPrecedence::kBetween),
+                OperatorPrecedence::kBetween);
+  }
+
   Expr Like(const Expr &a) const {
     return Expr(Extract(OperatorPrecedence::kBetween) + " LIKE " +
+                    a.Extract(OperatorPrecedence::kBetween),
+                OperatorPrecedence::kBetween);
+  }
+
+  Expr NotLike(const Expr &a) const {
+    return Expr(Extract(OperatorPrecedence::kBetween) + " NOT LIKE " +
                     a.Extract(OperatorPrecedence::kBetween),
                 OperatorPrecedence::kBetween);
   }
@@ -110,8 +177,19 @@ public:
                 OperatorPrecedence::kIs);
   }
 
+  Expr IsNotNull() const {
+    return Expr(Extract(OperatorPrecedence::kIs) + " IS NOT NULL",
+                OperatorPrecedence::kIs);
+  }
+
   Expr operator<(const Expr &other) const {
     return Expr(Extract(OperatorPrecedence::kCompare) + " < " +
+                    other.Extract(OperatorPrecedence::kCompare),
+                OperatorPrecedence::kCompare);
+  }
+
+  Expr operator<=(const Expr &other) const {
+    return Expr(Extract(OperatorPrecedence::kCompare) + " <= " +
                     other.Extract(OperatorPrecedence::kCompare),
                 OperatorPrecedence::kCompare);
   }
@@ -122,8 +200,20 @@ public:
                 OperatorPrecedence::kCompare);
   }
 
+  Expr operator>=(const Expr &other) const {
+    return Expr(Extract(OperatorPrecedence::kCompare) + " >= " +
+                    other.Extract(OperatorPrecedence::kCompare),
+                OperatorPrecedence::kCompare);
+  }
+
   Expr operator==(const Expr &other) const {
     return Expr(Extract(OperatorPrecedence::kCompare) + " = " +
+                    other.Extract(OperatorPrecedence::kCompare),
+                OperatorPrecedence::kCompare);
+  }
+
+  Expr operator!=(const Expr &other) const {
+    return Expr(Extract(OperatorPrecedence::kCompare) + " != " +
                     other.Extract(OperatorPrecedence::kCompare),
                 OperatorPrecedence::kCompare);
   }
@@ -287,15 +377,54 @@ public:
     return std::move(*this);
   }
 
+  SelectExpr GroupBy(std::string_view by) && {
+    group_by_ = by;
+    return std::move(*this);
+  }
+
+  SelectExpr GroupBy(std::initializer_list<std::string_view> by) && {
+    for (const auto &arg : by) {
+      if (!group_by_.empty())
+        group_by_ += ", ";
+      group_by_ += arg;
+    }
+    return std::move(*this);
+  }
+
+  SelectExpr Having(Expr exp) && {
+    having_ = exp.ToString();
+    return std::move(*this);
+  }
+
+  SelectExpr Limit(int limit) && {
+    limit_ = std::to_string(limit);
+    return std::move(*this);
+  }
+
+  SelectExpr Offset(int offset) && {
+    offset_ = std::to_string(offset);
+    return std::move(*this);
+  }
+
   std::string ToString() const override {
-    assert(!select_.empty());
-    assert(!from_.empty());
+    if (select_.empty())
+      throw std::logic_error("sql_builder_pp: SELECT clause is not set");
+    if (from_.empty())
+      throw std::logic_error("sql_builder_pp: FROM clause is not set");
 
     auto s = "SELECT " + select_ + " FROM " + from_;
     if (!where_.empty())
       s += " WHERE " + where_;
+    if (!group_by_.empty())
+      s += " GROUP BY " + group_by_;
+    if (!having_.empty())
+      s += " HAVING " + having_;
     if (!order_by_.empty())
       s += " ORDER BY " + order_by_;
+    if (!limit_.empty())
+      s += " LIMIT " + limit_;
+    if (!offset_.empty())
+      s += " OFFSET " + offset_;
     return s;
   }
 
@@ -303,7 +432,11 @@ private:
   std::string from_;
   std::string select_;
   std::string where_;
+  std::string group_by_;
+  std::string having_;
   std::string order_by_;
+  std::string limit_;
+  std::string offset_;
 };
 
 /// @brief Handy fabric for @ref SelectExpr
@@ -320,7 +453,8 @@ public:
   }
 
   std::string ToString() const override {
-    assert(!from_.empty());
+    if (from_.empty())
+      throw std::logic_error("sql_builder_pp: FROM clause is not set");
 
     auto s = "DELETE FROM " + from_;
     if (!where_.empty())
@@ -333,6 +467,78 @@ private:
   std::string where_;
 };
 
+/// @brief Transitional representation for INSERT INTO query
+class [[nodiscard]] InsertInto final {
+public:
+  InsertInto(const Table &tbl) : into_(tbl.ToStringBracketed()) {}
+
+  InsertInto Columns(std::initializer_list<Expr> cols) && {
+    for (const auto &col : cols) {
+      if (!columns_.empty())
+        columns_ += ", ";
+      columns_ += col.ToString();
+    }
+    return std::move(*this);
+  }
+
+  InsertInto Values(std::initializer_list<Expr> vals) && {
+    for (const auto &val : vals) {
+      if (!values_.empty())
+        values_ += ", ";
+      values_ += val.ToString();
+    }
+    return std::move(*this);
+  }
+
+  std::string ToString() const {
+    if (columns_.empty())
+      throw std::logic_error("sql_builder_pp: no columns to insert into");
+    if (values_.empty())
+      throw std::logic_error("sql_builder_pp: no values to insert");
+
+    return "INSERT INTO " + into_ + " (" + columns_ + ") VALUES (" + values_ +
+           ")";
+  }
+
+private:
+  std::string into_;
+  std::string columns_;
+  std::string values_;
+};
+
+/// @brief Transitional representation for UPDATE query
+class [[nodiscard]] Update final {
+public:
+  Update(const Table &tbl) : table_(tbl.ToStringBracketed()) {}
+
+  Update Set(const Expr &column, const Expr &value) && {
+    if (!set_.empty())
+      set_ += ", ";
+    set_ += column.ToString() + " = " + value.ToString();
+    return std::move(*this);
+  }
+
+  Update Where(Expr exp) && {
+    where_ = exp.ToString();
+    return std::move(*this);
+  }
+
+  std::string ToString() const {
+    if (set_.empty())
+      throw std::logic_error("sql_builder_pp: SET clause is not set");
+
+    auto s = "UPDATE " + table_ + " SET " + set_;
+    if (!where_.empty())
+      s += " WHERE " + where_;
+    return s;
+  }
+
+private:
+  std::string table_;
+  std::string set_;
+  std::string where_;
+};
+
 struct [[nodiscard]] JoinKind {
   virtual std::string_view ToString() const = 0;
 };
@@ -342,6 +548,15 @@ struct [[nodiscard]] Inner final : JoinKind {
 };
 struct [[nodiscard]] Cross final : JoinKind {
   std::string_view ToString() const override { return "CROSS"; }
+};
+struct [[nodiscard]] LeftOuter final : JoinKind {
+  std::string_view ToString() const override { return "LEFT OUTER"; }
+};
+struct [[nodiscard]] RightOuter final : JoinKind {
+  std::string_view ToString() const override { return "RIGHT OUTER"; }
+};
+struct [[nodiscard]] FullOuter final : JoinKind {
+  std::string_view ToString() const override { return "FULL OUTER"; }
 };
 
 /// @brief Transitional representation for JOIN query
@@ -369,6 +584,37 @@ private:
   std::string on_;
 };
 
+struct [[nodiscard]] SetOpKind {
+  virtual std::string_view ToString() const = 0;
+};
+
+struct [[nodiscard]] Union final : SetOpKind {
+  std::string_view ToString() const override { return "UNION"; }
+};
+struct [[nodiscard]] UnionAll final : SetOpKind {
+  std::string_view ToString() const override { return "UNION ALL"; }
+};
+struct [[nodiscard]] Intersect final : SetOpKind {
+  std::string_view ToString() const override { return "INTERSECT"; }
+};
+struct [[nodiscard]] Except final : SetOpKind {
+  std::string_view ToString() const override { return "EXCEPT"; }
+};
+
+/// @brief Transitional representation for UNION/UNION ALL/INTERSECT/EXCEPT
+class [[nodiscard]] SetOp final : public VirtualTable {
+public:
+  SetOp(const VirtualTable &a, const VirtualTable &b, const SetOpKind &kind)
+      : a_(a.ToStringBracketed()), b_(b.ToStringBracketed()),
+        kind_(kind.ToString()) {}
+
+  std::string ToString() const override { return a_ + " " + kind_ + " " + b_; }
+
+private:
+  std::string kind_;
+  std::string a_, b_;
+};
+
 // userver (???) PostgreSQL part:
 
 /// @brief SQL table column
@@ -383,11 +629,36 @@ struct [[nodiscard]] Column final {
   operator Expr() const { return Expr(name); }
 
   Expr operator<(const Expr &other) const;
-
-  Expr operator>(const Expr &) const;
-
-  Expr operator==(const Expr &) const;
+  Expr operator<=(const Expr &other) const;
+  Expr operator>(const Expr &other) const;
+  Expr operator>=(const Expr &other) const;
+  Expr operator==(const Expr &other) const;
+  Expr operator!=(const Expr &other) const;
 };
+
+inline Expr Column::operator<(const Expr &other) const {
+  return Expr(*this) < other;
+}
+
+inline Expr Column::operator<=(const Expr &other) const {
+  return Expr(*this) <= other;
+}
+
+inline Expr Column::operator>(const Expr &other) const {
+  return Expr(*this) > other;
+}
+
+inline Expr Column::operator>=(const Expr &other) const {
+  return Expr(*this) >= other;
+}
+
+inline Expr Column::operator==(const Expr &other) const {
+  return Expr(*this) == other;
+}
+
+inline Expr Column::operator!=(const Expr &other) const {
+  return Expr(*this) != other;
+}
 
 /// @brief Table with associated columns. Usually not created by hands.
 class [[nodiscard]] TableWithColumns final : public Table {
