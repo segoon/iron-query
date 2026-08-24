@@ -1,3 +1,3 @@
 - userver wrappers
-- TODOs in code
 - example project
+- split the god header into small headers
