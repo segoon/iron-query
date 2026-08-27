@@ -4,7 +4,7 @@ components_manager:
         handler-key-value:
             path: /v1/key-value  # Registering handler by URL '/v1/key-value'.
             task_processor: main-task-processor  # Run it on CPU bound task processor
-            method: GET,DELETE,POST
+            method: GET
 
         key-value-database:
             dbconnection: 'postgresql://testsuite@localhost:15433/postgres'
