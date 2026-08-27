@@ -63,16 +63,13 @@ public:
   /// for a value or @ref FromRaw for a trusted SQL fragment.
   Expr(const char *) = delete;
 
-  /// @brief Wraps a trusted, developer-written SQL fragment verbatim. Never
-  /// pass untrusted/dynamic data here — use @ref Literal or @ref Ident
-  /// instead, since this string is inserted into the query unescaped.
-  static Expr FromRaw(std::string s);
-
   /// @brief Wraps a trusted, developer-written SQL fragment verbatim,
   /// together with the precedence of its top-level operator, so that @ref
   /// Extract can bracket it correctly when it is embedded into a
   /// higher-precedence expression. Never pass untrusted/dynamic data here.
-  static Expr FromRaw(std::string s, OperatorPrecedence precedence);
+  static Expr
+  FromRaw(std::string s,
+          OperatorPrecedence precedence = OperatorPrecedence::kSymbol);
 
   /// @brief Builds a properly escaped and quoted SQL string literal out of an
   /// arbitrary (possibly untrusted) value. Use this instead of Expr(string)

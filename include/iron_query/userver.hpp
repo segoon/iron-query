@@ -6,7 +6,6 @@
 /// so include this header directly in projects that have userver on their
 /// include path.
 
-#include <optional>
 #include <utility>
 
 #include <userver/storages/query.hpp>
@@ -22,8 +21,7 @@ namespace iron_query::userver {
 /// responsibility, exactly as with a bare `ToString()` call.
 template <typename Builder>
 ::storages::Query ToQuery(
-    const Builder &builder,
-    std::optional<::storages::Query::Name> name = std::nullopt,
+    const Builder &builder, ::storages::Query::Name name,
     ::storages::Query::LogMode log_mode = ::storages::Query::LogMode::kFull) {
   return ::storages::Query(builder.ToString(), std::move(name), log_mode);
 }

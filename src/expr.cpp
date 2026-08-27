@@ -48,8 +48,6 @@ Expr Expr::FromDouble(double value) {
   return Expr(std::move(s));
 }
 
-Expr Expr::FromRaw(std::string s) { return Expr(std::move(s)); }
-
 Expr Expr::FromRaw(std::string s, OperatorPrecedence precedence) {
   return Expr(std::move(s), precedence);
 }
