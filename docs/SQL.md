@@ -181,9 +181,6 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 
 **Caveat:** no PostgreSQL or `libpg_query` is available in this environment, so the
 corrected strings were checked against the grammar by reading it, not by parsing them.
-Defect #2 is precisely what a string-comparison-only suite cannot catch — a test was
-asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 1 in §5. The same caveat
-applies to everything added since.
 
 ---
 
