@@ -1,4 +1,4 @@
-# IronQuery
+# IronQuery (IQ)
 
 A SQL query builder for C++.
 
@@ -12,6 +12,8 @@ A SQL query builder for C++.
 * git, .github
 * `make test`
 * doxygen comments for all types, methods, functions in `include/`
+* `@note` comments for "this specific syntax invariant is not checked by IQ
+* `[[nodiscard]]` for all types representing intermediate results
 
 * DRY, KISS, SOLID.
 * Prefer SRP, avoid god objects.
