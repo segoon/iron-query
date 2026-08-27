@@ -14,6 +14,7 @@ A SQL query builder for C++.
 * doxygen comments for all types, methods, functions in `include/`
 * `@note` comments for "this specific syntax invariant is not checked by IQ
 * `[[nodiscard]]` for all types representing intermediate results
+* `namespace impl` for non-public types/functions in public headers
 
 * DRY, KISS, SOLID.
 * Prefer SRP, avoid god objects.
