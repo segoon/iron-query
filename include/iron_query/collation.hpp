@@ -11,6 +11,13 @@ public:
   /// Never pass untrusted/dynamic data here.
   static Collation FromRaw(std::string name);
 
+  /// @brief The database's default collation.
+  static Collation Default();
+  /// @brief The `C` collation: byte-order comparison.
+  static Collation C();
+  /// @brief The `POSIX` collation, identical to `C` on PostgreSQL.
+  static Collation Posix();
+
   /// @brief Renders the collation name as SQL text.
   std::string ToString() const;
 

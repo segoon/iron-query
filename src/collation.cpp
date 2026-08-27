@@ -11,4 +11,10 @@ Collation Collation::FromRaw(std::string name) {
 
 std::string Collation::ToString() const { return name_; }
 
+Collation Collation::Default() { return FromRaw("\"default\""); }
+
+Collation Collation::C() { return FromRaw("\"C\""); }
+
+Collation Collation::Posix() { return FromRaw("\"POSIX\""); }
+
 } // namespace iron_query
