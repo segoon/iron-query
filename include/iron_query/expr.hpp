@@ -13,7 +13,7 @@ class Condition;
 class Collation;
 class SelectItem;
 
-namespace detail {
+namespace impl {
 
 /// @brief Integer types that map onto a SQL integer literal. `bool` and the
 /// character types are excluded: they have their own SQL spelling (`TRUE` /
@@ -29,7 +29,7 @@ inline constexpr bool kIsSqlInteger =
     !std::is_same_v<std::remove_cv_t<T>, char16_t> &&
     !std::is_same_v<std::remove_cv_t<T>, char32_t>;
 
-} // namespace detail
+} // namespace impl
 
 /// @brief Arbitrary SQL expression
 /// @note The comparison (`<`, `<=`, `>`, `>=`, `==`, `!=`), arithmetic (`+`,
@@ -39,7 +39,7 @@ inline constexpr bool kIsSqlInteger =
 class [[nodiscard]] Expr final {
 public:
   /// @brief Wraps an integer literal of any width and signedness.
-  template <typename T, std::enable_if_t<detail::kIsSqlInteger<T>, int> = 0>
+  template <typename T, std::enable_if_t<impl::kIsSqlInteger<T>, int> = 0>
   Expr(T value)
       : Expr(FromInteger(
             static_cast<std::conditional_t<std::is_signed_v<T>, long long,

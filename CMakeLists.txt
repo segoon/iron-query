@@ -19,7 +19,7 @@ include(CMakePackageConfigHelpers)
 set(IRON_QUERY_WARNINGS
   $<$<OR:$<CXX_COMPILER_ID:GNU>,$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wall;-Wextra;-Werror>)
 
-file(GLOB IRON_QUERY_SOURCES CONFIGURE_DEPENDS src/*.cpp src/detail/*.cpp)
+file(GLOB IRON_QUERY_SOURCES CONFIGURE_DEPENDS src/*.cpp src/impl/*.cpp)
 add_library(iron-query STATIC ${IRON_QUERY_SOURCES})
 target_compile_options(iron-query PRIVATE ${IRON_QUERY_WARNINGS})
 target_include_directories(iron-query PUBLIC

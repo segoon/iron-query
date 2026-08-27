@@ -1,4 +1,4 @@
-#include "detail/identifier.hpp"
+#include "impl/identifier.hpp"
 #include <iron_query/expr.hpp>
 #include <iron_query/table.hpp>
 #include <iron_query/virtual_table.hpp>
@@ -20,7 +20,7 @@ std::string VirtualTable::ToStringAsFromItem() const {
 }
 
 Table VirtualTable::As(std::string_view name) const {
-  detail::ValidateIdentifier(name);
+  impl::ValidateIdentifier(name);
   // No outer brackets: PostgreSQL's table_ref grammar attaches the alias
   // directly to the item, and only ever allows parentheses around a bare
   // joined_table -- which is exactly what ToStringBracketed() produces here.

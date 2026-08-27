@@ -159,7 +159,7 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 1. **`SelectExpr::Select(initializer_list)` appended instead of replacing.** Two calls
    silently concatenated. `OrderBy`/`GroupBy` assigned in both overloads, so it was a
    slip, not a design. Fixed by giving each comma-separated clause a single assignment
-   site (`RenderAll` in `src/detail/render.hpp`), with the one-term overloads delegating
+   site (`RenderAll` in `src/impl/render.hpp`), with the one-term overloads delegating
    to the many-term ones — the two can no longer disagree.
 2. **`VirtualTable::As` wrapped the alias inside the parentheses**, emitting
    `(foo AS bar)`, `((SELECT …) AS s)` and `((a JOIN b) AS j)`. PostgreSQL's

@@ -1,4 +1,4 @@
-#include "detail/render.hpp"
+#include "impl/render.hpp"
 #include <iron_query/select_expr.hpp>
 #include <stdexcept>
 #include <string>
@@ -20,7 +20,7 @@ SelectExpr SelectExpr::Select(SelectItem item) && {
 }
 
 SelectExpr SelectExpr::Select(std::initializer_list<SelectItem> items) && {
-  select_ = detail::RenderAll(items);
+  select_ = impl::RenderAll(items);
   return std::move(*this);
 }
 
@@ -34,7 +34,7 @@ SelectExpr SelectExpr::OrderBy(OrderByTerm term) && {
 }
 
 SelectExpr SelectExpr::OrderBy(std::initializer_list<OrderByTerm> terms) && {
-  order_by_ = detail::RenderAll(terms);
+  order_by_ = impl::RenderAll(terms);
   return std::move(*this);
 }
 
@@ -43,7 +43,7 @@ SelectExpr SelectExpr::GroupBy(Expr exp) && {
 }
 
 SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
-  group_by_ = detail::RenderAll(exps);
+  group_by_ = impl::RenderAll(exps);
   return std::move(*this);
 }
 
@@ -87,15 +87,15 @@ std::string SelectExpr::ToString() const {
   EnsureValid();
 
   std::string s = distinct_ ? "SELECT DISTINCT " : "SELECT ";
-  s += detail::JoinCsv(select_) + " FROM " + from_;
+  s += impl::JoinCsv(select_) + " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
   if (!group_by_.empty())
-    s += " GROUP BY " + detail::JoinCsv(group_by_);
+    s += " GROUP BY " + impl::JoinCsv(group_by_);
   if (!having_.empty())
     s += " HAVING " + having_;
   if (!order_by_.empty())
-    s += " ORDER BY " + detail::JoinCsv(order_by_);
+    s += " ORDER BY " + impl::JoinCsv(order_by_);
   if (!limit_.empty())
     s += " LIMIT " + limit_;
   if (!offset_.empty())

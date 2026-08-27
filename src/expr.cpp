@@ -1,5 +1,5 @@
-#include "detail/identifier.hpp"
-#include "detail/render.hpp"
+#include "impl/identifier.hpp"
+#include "impl/render.hpp"
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -89,7 +89,7 @@ Expr Expr::Bool(bool value) {
 }
 
 Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
-  detail::ValidateIdentifier(name);
+  impl::ValidateIdentifier(name);
   auto s = name + "(";
   bool first = true;
   for (const auto &arg : args) {
@@ -251,7 +251,7 @@ std::string RenderValueList(std::initializer_list<Expr> values) {
   rendered.reserve(values.size());
   for (const auto &value : values)
     rendered.push_back(value.ToString());
-  return "(" + detail::JoinCsv(rendered) + ")";
+  return "(" + impl::JoinCsv(rendered) + ")";
 }
 
 } // namespace
@@ -403,8 +403,8 @@ Expr Expr::operator%(const Expr &other) const {
 }
 
 SelectItem Expr::As(std::string_view name) const {
-  // Not detail::ValidateIdentifier(): a column alias cannot be dot-qualified.
-  if (!detail::IsPlainIdentifier(name))
+  // Not impl::ValidateIdentifier(): a column alias cannot be dot-qualified.
+  if (!impl::IsPlainIdentifier(name))
     throw std::invalid_argument("iron_query: invalid column alias: " +
                                 std::string(name));
   return SelectItem(ToString() + " AS " + std::string(name));

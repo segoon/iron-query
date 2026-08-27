@@ -1,4 +1,4 @@
-#include "detail/render.hpp"
+#include "impl/render.hpp"
 #include <iron_query/update.hpp>
 #include <stdexcept>
 #include <utility>
@@ -24,7 +24,7 @@ Update Update::Returning(SelectItem item) && {
 }
 
 Update Update::Returning(std::initializer_list<SelectItem> items) && {
-  returning_ = detail::JoinCsv(detail::RenderAll(items));
+  returning_ = impl::JoinCsv(impl::RenderAll(items));
   return std::move(*this);
 }
 

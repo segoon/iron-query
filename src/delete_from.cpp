@@ -1,4 +1,4 @@
-#include "detail/render.hpp"
+#include "impl/render.hpp"
 #include <iron_query/delete_from.hpp>
 #include <stdexcept>
 #include <utility>
@@ -17,7 +17,7 @@ DeleteFrom DeleteFrom::Returning(SelectItem item) && {
 }
 
 DeleteFrom DeleteFrom::Returning(std::initializer_list<SelectItem> items) && {
-  returning_ = detail::JoinCsv(detail::RenderAll(items));
+  returning_ = impl::JoinCsv(impl::RenderAll(items));
   return std::move(*this);
 }
 

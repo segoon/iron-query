@@ -1,6 +1,6 @@
 #include "render.hpp"
 
-namespace iron_query::detail {
+namespace iron_query::impl {
 
 std::string JoinCsv(const std::vector<std::string> &items) {
   std::string s;
@@ -27,4 +27,4 @@ std::string RenderTerm(const OrderByTerm &term) {
   return s;
 }
 
-} // namespace iron_query::detail
+} // namespace iron_query::impl

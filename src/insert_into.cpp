@@ -1,4 +1,4 @@
-#include "detail/render.hpp"
+#include "impl/render.hpp"
 #include <iron_query/insert_into.hpp>
 #include <stdexcept>
 #include <string>
@@ -28,13 +28,13 @@ void EnsureSameArity(const std::vector<std::string> &columns,
 } // namespace
 
 InsertInto InsertInto::Columns(std::initializer_list<Expr> cols) && {
-  columns_ = detail::RenderAll(cols);
+  columns_ = impl::RenderAll(cols);
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
 
 InsertInto InsertInto::Values(std::initializer_list<Expr> vals) && {
-  rows_ = {detail::RenderAll(vals)};
+  rows_ = {impl::RenderAll(vals)};
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
@@ -44,7 +44,7 @@ InsertInto::Rows(std::initializer_list<std::initializer_list<Expr>> rows) && {
   rows_.clear();
   rows_.reserve(rows.size());
   for (const auto &row : rows)
-    rows_.push_back(detail::RenderAll(row));
+    rows_.push_back(impl::RenderAll(row));
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
@@ -54,7 +54,7 @@ InsertInto InsertInto::Returning(SelectItem item) && {
 }
 
 InsertInto InsertInto::Returning(std::initializer_list<SelectItem> items) && {
-  returning_ = detail::JoinCsv(detail::RenderAll(items));
+  returning_ = impl::JoinCsv(impl::RenderAll(items));
   return std::move(*this);
 }
 
@@ -65,8 +65,7 @@ InsertInto InsertInto::OnConflictDoNothing() && {
 
 InsertInto
 InsertInto::OnConflictDoNothing(std::initializer_list<Expr> target_cols) && {
-  on_conflict_ = "ON CONFLICT (" +
-                 detail::JoinCsv(detail::RenderAll(target_cols)) +
+  on_conflict_ = "ON CONFLICT (" + impl::JoinCsv(impl::RenderAll(target_cols)) +
                  ") DO NOTHING";
   return std::move(*this);
 }
@@ -84,8 +83,7 @@ InsertInto InsertInto::OnConflictDoUpdate(
       set += ", ";
     set += column.ToString() + " = " + value.ToString();
   }
-  on_conflict_ = "ON CONFLICT (" +
-                 detail::JoinCsv(detail::RenderAll(target_cols)) +
+  on_conflict_ = "ON CONFLICT (" + impl::JoinCsv(impl::RenderAll(target_cols)) +
                  ") DO UPDATE SET " + set;
   return std::move(*this);
 }
@@ -98,11 +96,11 @@ std::string InsertInto::ToString() const {
   EnsureSameArity(columns_, rows_);
 
   std::string s =
-      "INSERT INTO " + into_ + " (" + detail::JoinCsv(columns_) + ") VALUES ";
+      "INSERT INTO " + into_ + " (" + impl::JoinCsv(columns_) + ") VALUES ";
   for (std::size_t i = 0; i < rows_.size(); ++i) {
     if (i != 0)
       s += ", ";
-    s += "(" + detail::JoinCsv(rows_[i]) + ")";
+    s += "(" + impl::JoinCsv(rows_[i]) + ")";
   }
   if (!on_conflict_.empty())
     s += " " + on_conflict_;
