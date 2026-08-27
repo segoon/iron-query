@@ -2,8 +2,15 @@ cmake_minimum_required(VERSION 3.16)
 
 PROJECT(iron-query VERSION 0.1.0 LANGUAGES CXX)
 
-enable_testing()
-include(GoogleTest)
+# Only build the test binary when this is the top-level project: examples/
+# and downstream consumers pull in just the `iron-query` target via
+# add_subdirectory() and should not need GTest as a transitive dependency.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(IRON_QUERY_IS_TOP_LEVEL TRUE)
+else()
+  set(IRON_QUERY_IS_TOP_LEVEL FALSE)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
@@ -21,13 +28,15 @@ target_include_directories(iron-query PUBLIC
 target_compile_features(iron-query PUBLIC cxx_std_17)
 add_library(iron-query::iron-query ALIAS iron-query)
 
-add_executable(iron-query-gtest tests/test.cpp)
-# EXPECT_THROW discards the builder it evaluates, which is the whole point of
-# the macro, but clang reports that against our [[nodiscard]] types.
-target_compile_options(iron-query-gtest PRIVATE ${IRON_QUERY_WARNINGS}
-  $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-unused-result>)
-target_link_libraries(iron-query-gtest gtest_main gtest iron-query)
-gtest_discover_tests(iron-query-gtest)
+if(IRON_QUERY_IS_TOP_LEVEL)
+  enable_testing()
+  include(GoogleTest)
+
+  add_executable(iron-query-gtest tests/test.cpp)
+  target_compile_options(iron-query-gtest PRIVATE ${IRON_QUERY_WARNINGS})
+  target_link_libraries(iron-query-gtest gtest_main gtest iron-query)
+  gtest_discover_tests(iron-query-gtest)
+endif()
 
 install(TARGETS iron-query EXPORT iron-query-targets)
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

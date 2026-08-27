@@ -1,4 +1,4 @@
 - ~~userver header~~ done: `include/iron_query/userver.hpp`
-- example with userver
+- ~~example with userver~~ done: `examples/userver/`
 - example with raw libpq (?)
 - CI check is required
