@@ -3,6 +3,8 @@
 A SQL query builder for C++.
 
 - @docs/VISION.md - product definition, read it first
+- @docs/TODO.md - roadmap
+- @docs/SQL.md - significant SQL syntax references (both done/not done)
 
 # Development
 
