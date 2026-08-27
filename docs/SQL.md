@@ -1,6 +1,7 @@
 # SQL coverage
 
-Status of IronQuery's SQL surface as of the P0 batch (§5 items 1-4).
+Status of IronQuery's SQL surface, kept in sync as features land (see §5 for
+remaining work).
 
 Reference dialect: **PostgreSQL 17**
 ([SQL commands](https://www.postgresql.org/docs/current/sql-commands.html),
@@ -181,8 +182,8 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 **Caveat:** no PostgreSQL or `libpg_query` is available in this environment, so the
 corrected strings were checked against the grammar by reading it, not by parsing them.
 Defect #2 is precisely what a string-comparison-only suite cannot catch — a test was
-asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 6 in §5. The same caveat
-applies to everything added for P0 items 1-4.
+asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 1 in §5. The same caveat
+applies to everything added since.
 
 ---
 
@@ -192,70 +193,40 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P0 — the library is hard to use without these**
 
-1. ~~Make `Join` a first-class `FROM` source.~~ Done. `From()`/`SelectExpr` now take a
-   `const VirtualTable&` and render it through a new `ToStringAsFromItem()` virtual:
-   `Table` returns its bare name, `Join` returns itself **unbracketed** (PostgreSQL's
-   `table_ref` allows `'(' joined_table ')'` only when an alias follows), and everything
-   else — every subquery — throws, since PostgreSQL requires an alias there. Use `As()`.
-   **`DeleteFrom`/`Update` deliberately still take a `const Table&`:** their target is a
-   plain `relation_expr`, never a join or subquery, so widening them would only let the
-   builder emit SQL that cannot parse. No `SelectExpr::Join(...)` chain step either —
-   `From(Join(a, b, Inner()).On(cond))` already composes, and a second builder type for
-   it would earn nothing.
-2. ~~`Expr::Null()`, `Expr::Bool()`, `Expr(double)`, `Expr(int64_t)`.~~ Done, via
-   constrained template constructors (one for integers of any width and signedness, one
-   for floating point) plus deleted `bool`/`char`/`const char*` overloads — plain
-   overloads would have made `Expr(unsigned)` ambiguous and let `Expr("text")` decay to
-   `TRUE`. Doubles render through `std::to_chars` (shortest round-trip); NaN/infinity
-   throw, since SQL spells them as typed literals.
-3. ~~`IN` with a value list and with a subquery.~~ Done, plus `EqAny`/`NeAll` for the
-   bind-parameter form. The old `In(const Expr&)`/`NotIn(const Expr&)` are **removed**:
-   they emitted `x IN a` unparenthesized, so the only way to use them was to concatenate
-   `"(1, 2, 3)"` by hand.
-4. ~~Column aliases in the select list.~~ Done. `Expr::As`/`Column::As` return a
-   `SelectItem`, a new type that only `Select()` accepts, so `x AS y` cannot leak into a
-   `WHERE` or a function argument.
-5. ~~Fix defects #1 and #4.~~ Done — see §4.
-6. **Validate generated SQL against a real parser.** Every test is still a string
-   comparison, which is why defect #2 survived to be found by reading. Feeding each
-   expected string through `postgres --check`/`libpg_query`/an ephemeral PG container in
-   CI would turn the whole suite into a syntax oracle — the cheapest possible guard for
-   a library whose entire value proposition is "your SQL parses". **Now the only open P0
-   item, and the highest-value one**: the §4 fixes and everything added for items 1-4
-   above are grammar-checked by hand, not by a parser. Deliberately deferred out of the
-   P0 batch as CI/infrastructure work rather than API work.
+1. **Validate generated SQL against a real parser.** Every test is still a string
+   comparison. Feeding each expected string through `postgres --check`/`libpg_query`/an
+   ephemeral PG container in CI would turn the whole suite into a syntax oracle — the
+   cheapest possible guard for a library whose entire value proposition is "your SQL
+   parses". Everything added so far is grammar-checked by hand, not by a parser (see the
+   §4 caveat). Deferred out of the P0 batch as CI/infrastructure work rather than API
+   work.
 
 **P1 — routine work that currently needs `FromRaw`**
 
-6. ~~`SELECT DISTINCT`~~ Done, via `SelectExpr::Distinct()`. `DISTINCT ON` remains unsupported.
-7. Multi-row `INSERT`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`.
-8. `Limit`/`Offset` taking an `Expr` so bind parameters work. (`INSERT`'s `Values()` already
-   accepts bind placeholders, since it takes plain `Expr` and `_1..._10` are `Expr`.)
-9. ~~`ORDER BY ... NULLS FIRST/LAST`~~ Done, via `OrderByTerm`'s `NullsOrder` parameter.
-10. ~~`COUNT(DISTINCT x)`~~ Done, via `Expr::CountDistinct`. `FILTER (WHERE ...)` and named
-    `Coalesce`/`NullIf`/`Greatest`/`Least` remain open.
-11. ~~`ILIKE` / `IS [NOT] DISTINCT FROM`~~ Done, via `Expr::ILike`/`NotILike`/`SimilarTo`/
-    `NotSimilarTo`/`IsDistinctFrom`/`IsNotDistinctFrom`. Regex match (`~`/`!~`) remains open.
-12. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
+2. Multi-row `INSERT`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`.
+3. `Limit`/`Offset` taking an `Expr` so bind parameters work.
+4. `FILTER (WHERE ...)`; named `Coalesce`/`NullIf`/`Greatest`/`Least`.
+5. Regex match (`~`/`!~`).
+6. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
 
 **P2 — makes the schema-safety promise real**
 
-13. **Qualified column references end to end**: `TableAlias::Dot` should return `Expr`,
-    and `TableWithColumns` should hand out `Column`s already bound to their table/alias,
-    so the README example needs no `FromRaw` at all. This subsumes the `Column` operator
-    duplication — make `Column` convert to a fully-qualified `Expr` once instead of
-    re-declaring operators on it.
-14. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
-    `Cast`), or drop them.
-15. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
-    compile error rather than a convention.
+7. **Qualified column references end to end**: `TableAlias::Dot` should return `Expr`,
+   and `TableWithColumns` should hand out `Column`s already bound to their table/alias,
+   so the README example needs no `FromRaw` at all. This subsumes the `Column` operator
+   duplication — make `Column` convert to a fully-qualified `Expr` once instead of
+   re-declaring operators on it.
+8. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
+   `Cast`), or drop them.
+9. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
+   compile error rather than a convention.
 
 **P3 — breadth**
 
-16. Window functions.
-17. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
-18. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
-19. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
+10. Window functions.
+11. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
+12. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
+13. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
 
 **Explicitly out of scope** (worth writing into `docs/VISION.md`): DDL, transaction
 control, `EXPLAIN`, `COPY`, permissions, and anything an ORM would do (mapping rows to
