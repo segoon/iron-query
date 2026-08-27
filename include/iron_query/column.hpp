@@ -15,6 +15,9 @@ struct [[nodiscard]] Column final {
   /// Column name
   std::string name;
   /// Type as defined in current SQL dialect
+  /// @note This field is metadata only: IQ never consults it to validate
+  /// that a compared/assigned Expr matches the column's declared type (see
+  /// @ref Expr's class-level @note).
   std::string type;
   /// Whether column value can be NULL
   bool is_nullable{false};

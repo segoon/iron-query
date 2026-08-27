@@ -41,6 +41,8 @@ public:
   Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind);
 
   /// @brief Sets the ON clause.
+  /// @note Does not check that `exp` references only columns of the two
+  /// joined tables.
   Join On(Condition exp) &&;
 
   std::string ToString() const override;

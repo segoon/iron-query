@@ -9,6 +9,8 @@ class [[nodiscard]] Collation final {
 public:
   /// @brief Wraps a trusted, developer-written collation name verbatim.
   /// Never pass untrusted/dynamic data here.
+  /// @note Does not check that `name` is a real collation known to the
+  /// database.
   static Collation FromRaw(std::string name);
 
   /// @brief The database's default collation.

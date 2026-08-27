@@ -41,6 +41,9 @@ public:
 
   /// @brief Converts this table value into a subquery expression, e.g. for
   /// use as a scalar subquery. Only available on rvalues.
+  /// @note Does not check that the underlying query yields exactly one
+  /// column: a multi-column query converts just as freely as a
+  /// single-column one.
   operator Expr() const &&;
 };
 

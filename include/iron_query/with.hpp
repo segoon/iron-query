@@ -24,6 +24,8 @@ public:
   /// @brief Adds another CTE: `, name AS (query)`. `name` must be a valid
   /// (optionally dotted) SQL identifier.
   /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @note Does not track the CTE's resulting column shape/types, so
+  /// mismatches when the CTE is later referenced elsewhere are not caught.
   WithBuilder With(std::string name, const VirtualTable &query) &&;
 
   /// @brief Finalizes the WITH clause with the main query that follows it.

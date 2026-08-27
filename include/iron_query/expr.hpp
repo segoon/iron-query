@@ -32,6 +32,10 @@ inline constexpr bool kIsSqlInteger =
 } // namespace detail
 
 /// @brief Arbitrary SQL expression
+/// @note The comparison (`<`, `<=`, `>`, `>=`, `==`, `!=`), arithmetic (`+`,
+/// `-`, `*`, `/`, `%`, `^`), and index (`operator[]`) operators below do not
+/// check that their two operands are SQL-compatible types; e.g. comparing a
+/// numeric expression to a text literal renders valid, meaningless SQL.
 class [[nodiscard]] Expr final {
 public:
   /// @brief Wraps an integer literal of any width and signedness.
@@ -92,6 +96,8 @@ public:
   /// {a, b}) -> "COALESCE(a, b)". `name` must be a valid (optionally dotted,
   /// e.g. "pg_catalog.now") SQL identifier.
   /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @note Does not check `args`' count or types against the named SQL
+  /// function's actual signature.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
   /// @brief EXISTS (subquery).
@@ -107,9 +113,11 @@ public:
   static Expr CountAll();
 
   /// @brief SUM(arg).
+  /// @note Does not check that `arg` is numeric.
   static Expr Sum(const Expr &arg);
 
   /// @brief AVG(arg).
+  /// @note Does not check that `arg` is numeric.
   static Expr Avg(const Expr &arg);
 
   /// @brief MIN(arg).
@@ -124,9 +132,13 @@ public:
   /// @brief SQL type cast: `CAST (this AS type)`. `type` is a trusted,
   /// developer-written SQL fragment inserted verbatim; never pass
   /// untrusted/dynamic data here.
+  /// @note Does not check that `type` is a real SQL type or that casting
+  /// `this` to it is valid.
   Expr CastRaw(const std::string &type) const;
 
   /// @brief `this COLLATE collation`.
+  /// @note Does not check that `this` is text-typed; see also @ref
+  /// Collation::FromRaw.
   Expr Collate(const Collation &collation) const;
 
   /// @brief Array/index access: `this[other]`.
@@ -136,20 +148,28 @@ public:
   Expr operator^(const Expr &other) const;
 
   /// @brief `this BETWEEN a AND b`.
+  /// @note Does not check that `a` and `b` share a comparable type with
+  /// `this`, nor that `a <= b`.
   Condition Between(const Expr &a, const Expr &b) const;
 
   /// @brief `this NOT BETWEEN a AND b`.
+  /// @note Does not check that `a` and `b` share a comparable type with
+  /// `this`, nor that `a <= b`.
   Condition NotBetween(const Expr &a, const Expr &b) const;
 
   /// @brief `this LIKE a`.
+  /// @note Does not check that `this` and `a` are text-typed.
   Condition Like(const Expr &a) const;
 
   /// @brief `this NOT LIKE a`.
+  /// @note Does not check that `this` and `a` are text-typed.
   Condition NotLike(const Expr &a) const;
 
   /// @brief `this IN (a, b, c)`.
   /// @throws std::invalid_argument if `values` is empty: SQL has no empty
   /// `IN ()` list.
+  /// @note Does not check that all `values` share a common type with `this`
+  /// or with each other.
   Condition In(std::initializer_list<Expr> values) const;
 
   /// @brief `this IN (subquery)`.
@@ -157,6 +177,8 @@ public:
 
   /// @brief `this NOT IN (a, b, c)`.
   /// @throws std::invalid_argument if `values` is empty.
+  /// @note Does not check that all `values` share a common type with `this`
+  /// or with each other.
   Condition NotIn(std::initializer_list<Expr> values) const;
 
   /// @brief `this NOT IN (subquery)`.
@@ -164,12 +186,16 @@ public:
 
   /// @brief `this = ANY (array)`. The idiomatic way to test membership in a
   /// list that arrives as a single bind parameter, e.g. `col.EqAny(_1)`.
+  /// @note Does not check that `array` is actually array-typed or that its
+  /// element type is compatible with `this`.
   Condition EqAny(const Expr &array) const;
 
   /// @brief `this = ANY (subquery)`.
   Condition EqAny(const VirtualTable &subquery) const;
 
   /// @brief `this <> ALL (array)`, the negation of @ref EqAny.
+  /// @note Does not check that `array` is actually array-typed or that its
+  /// element type is compatible with `this`.
   Condition NeAll(const Expr &array) const;
 
   /// @brief `this <> ALL (subquery)`.

@@ -18,12 +18,16 @@ public:
   /// set list.
   /// @throws std::logic_error if the count does not match an already-set
   /// @ref Values list.
+  /// @note Only the count is checked; `cols` are not checked to actually
+  /// name columns of `tbl`.
   InsertInto Columns(std::initializer_list<Expr> cols) &&;
 
   /// @brief Sets the list of values to insert, matching @ref Columns by
   /// position and replacing any previously set list.
   /// @throws std::logic_error if the count does not match an already-set
   /// @ref Columns list.
+  /// @note Only the count is checked; each value's SQL type is not checked
+  /// against the corresponding column's declared type.
   InsertInto Values(std::initializer_list<Expr> vals) &&;
 
   /// @throws std::logic_error if no columns or no values were set, or if the

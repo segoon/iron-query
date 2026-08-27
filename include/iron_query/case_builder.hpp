@@ -19,9 +19,13 @@ public:
 
   /// @brief Completes the pending branch as `WHEN cond THEN result`.
   /// @throws std::logic_error if not preceded by @ref When.
+  /// @note Does not check that all `Then`/`Else` branches of the same CASE
+  /// share a compatible result type.
   CaseBuilder Then(Expr result) &&;
 
   /// @brief Sets the `ELSE result` fallback branch.
+  /// @note Does not check that all `Then`/`Else` branches of the same CASE
+  /// share a compatible result type.
   CaseBuilder Else(Expr result) &&;
 
   /// @brief Finalizes the expression as `CASE ... [ELSE ...] END`.

@@ -33,6 +33,8 @@ struct [[nodiscard]] Except final : SetOpKind {
 class [[nodiscard]] SetOp final : public VirtualTable {
 public:
   /// @brief Builds `a kind b`.
+  /// @note Does not check that `a` and `b` produce the same number of
+  /// columns or compatible column types.
   SetOp(const VirtualTable &a, const VirtualTable &b, const SetOpKind &kind);
 
   std::string ToString() const override;

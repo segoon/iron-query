@@ -36,13 +36,19 @@ public:
   SelectExpr OrderBy(std::initializer_list<OrderByTerm> terms) &&;
 
   /// @brief Sets the GROUP BY clause to a single expression.
+  /// @note Does not check that non-aggregated @ref Select items are covered
+  /// by the GROUP BY expressions.
   SelectExpr GroupBy(Expr exp) &&;
 
   /// @brief Sets the GROUP BY clause to a comma-separated list of
   /// expressions.
+  /// @note Does not check that non-aggregated @ref Select items are covered
+  /// by the GROUP BY expressions.
   SelectExpr GroupBy(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the HAVING clause.
+  /// @note Does not check that `exp` references only grouped columns or
+  /// aggregates.
   SelectExpr Having(Condition exp) &&;
 
   /// @brief Sets the LIMIT clause.

@@ -14,6 +14,8 @@ public:
   Update(const Table &tbl);
 
   /// @brief Adds a `column = value` assignment to the SET clause.
+  /// @note Does not check that `column` names an actual column of `tbl`,
+  /// nor that `value`'s type matches that column's declared type.
   Update Set(const Expr &column, const Expr &value) &&;
 
   /// @brief Sets the WHERE clause.
