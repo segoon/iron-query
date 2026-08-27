@@ -14,9 +14,9 @@ namespace iron_query::detail {
 std::string JoinCsv(const std::vector<std::string> &items);
 
 /// @brief Renders one comma-separated clause term.
-std::string RenderTerm(const Expr &term);
+std::string RenderTerm(const Expr &exp);
 /// @brief Renders one comma-separated clause term.
-std::string RenderTerm(const SelectItem &term);
+std::string RenderTerm(const SelectItem &item);
 /// @brief Renders one comma-separated clause term.
 std::string RenderTerm(const OrderByTerm &term);
 

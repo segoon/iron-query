@@ -1,5 +1,6 @@
 #include "identifier.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <stdexcept>
 #include <string>
@@ -9,13 +10,11 @@ namespace iron_query::detail {
 bool IsPlainIdentifier(std::string_view s) {
   if (s.empty())
     return false;
-  if (!std::isalpha(static_cast<unsigned char>(s[0])) && s[0] != '_')
+  if (std::isalpha(static_cast<unsigned char>(s[0])) == 0 && s[0] != '_')
     return false;
-  for (char c : s.substr(1)) {
-    if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_')
-      return false;
-  }
-  return true;
+  return std::all_of(s.begin() + 1, s.end(), [](char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) != 0 || c == '_';
+  });
 }
 
 // Validates `s` as a plain or dot-qualified SQL identifier, e.g. "name" or

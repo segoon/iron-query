@@ -1,2 +1,4 @@
 build/
 build-sanitize/
+.cache/
+examples/userver/third_party/

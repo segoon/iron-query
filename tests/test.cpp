@@ -813,7 +813,7 @@ TEST(Expr, DoubleLiterals) {
   // std::to_string would render these as "0.100000" and "1.000000".
   EXPECT_EQ(Expr(0.1).ToString(), "0.1");
   EXPECT_EQ(Expr(1.0).ToString(), "1.0");
-  EXPECT_EQ(Expr(-2.5f).ToString(), "-2.5");
+  EXPECT_EQ(Expr(-2.5F).ToString(), "-2.5");
   EXPECT_EQ(Expr(1e300).ToString(), "1e+300");
 }
 
