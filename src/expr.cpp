@@ -1,5 +1,5 @@
-#include "detail/identifier.hpp"
-#include "detail/render.hpp"
+#include "impl/identifier.hpp"
+#include "impl/render.hpp"
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -89,7 +89,7 @@ Expr Expr::Bool(bool value) {
 }
 
 Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
-  detail::ValidateIdentifier(name);
+  impl::ValidateIdentifier(name);
   auto s = name + "(";
   bool first = true;
   for (const auto &arg : args) {
@@ -100,6 +100,37 @@ Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
   }
   s += ")";
   return Expr(std::move(s), OperatorPrecedence::kSymbol);
+}
+
+namespace {
+
+// COALESCE/GREATEST/LEAST render like ordinary function calls, but SQL
+// requires at least one argument, unlike a real function call.
+void EnsureNonEmptyArgs(std::initializer_list<Expr> args, const char *name) {
+  if (args.size() == 0)
+    throw std::invalid_argument(std::string("iron_query: ") + name +
+                                "() needs at least one argument");
+}
+
+} // namespace
+
+Expr Expr::Coalesce(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "COALESCE");
+  return Call("COALESCE", args);
+}
+
+Expr Expr::NullIf(const Expr &a, const Expr &b) {
+  return Call("NULLIF", {a, b});
+}
+
+Expr Expr::Greatest(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "GREATEST");
+  return Call("GREATEST", args);
+}
+
+Expr Expr::Least(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "LEAST");
+  return Call("LEAST", args);
 }
 
 Condition Expr::Exists(const VirtualTable &subquery) {
@@ -115,6 +146,10 @@ Condition Expr::NotExists(const VirtualTable &subquery) {
 Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
 
 Expr Expr::CountAll() { return Expr(std::string("COUNT(*)")); }
+
+Expr Expr::CountDistinct(const Expr &arg) {
+  return Expr("COUNT(DISTINCT " + arg.ToString() + ")");
+}
 
 Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
 
@@ -180,6 +215,30 @@ Condition Expr::NotLike(const Expr &a) const {
                    OperatorPrecedence::kBetween);
 }
 
+Condition Expr::ILike(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " ILIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotILike(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT ILIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::SimilarTo(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " SIMILAR TO " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotSimilarTo(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT SIMILAR TO " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
 namespace {
 
 // The right-hand side of IN/ANY/ALL is always parenthesized by the grammar
@@ -192,7 +251,7 @@ std::string RenderValueList(std::initializer_list<Expr> values) {
   rendered.reserve(values.size());
   for (const auto &value : values)
     rendered.push_back(value.ToString());
-  return "(" + detail::JoinCsv(rendered) + ")";
+  return "(" + impl::JoinCsv(rendered) + ")";
 }
 
 } // namespace
@@ -265,6 +324,18 @@ Condition Expr::IsNotNull() const {
                    OperatorPrecedence::kIs);
 }
 
+Condition Expr::IsDistinctFrom(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS DISTINCT FROM " +
+                       other.Extract(OperatorPrecedence::kIs),
+                   OperatorPrecedence::kIs);
+}
+
+Condition Expr::IsNotDistinctFrom(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT DISTINCT FROM " +
+                       other.Extract(OperatorPrecedence::kIs),
+                   OperatorPrecedence::kIs);
+}
+
 Condition Expr::operator<(const Expr &other) const {
   return Condition(Extract(OperatorPrecedence::kCompare) + " < " +
                        other.Extract(OperatorPrecedence::kCompare),
@@ -332,8 +403,8 @@ Expr Expr::operator%(const Expr &other) const {
 }
 
 SelectItem Expr::As(std::string_view name) const {
-  // Not detail::ValidateIdentifier(): a column alias cannot be dot-qualified.
-  if (!detail::IsPlainIdentifier(name))
+  // Not impl::ValidateIdentifier(): a column alias cannot be dot-qualified.
+  if (!impl::IsPlainIdentifier(name))
     throw std::invalid_argument("iron_query: invalid column alias: " +
                                 std::string(name));
   return SelectItem(ToString() + " AS " + std::string(name));

@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace iron_query::detail {
+namespace iron_query::impl {
 
 bool IsPlainIdentifier(std::string_view s) {
   if (s.empty())
@@ -33,4 +33,4 @@ void ValidateIdentifier(std::string_view s) {
   }
 }
 
-} // namespace iron_query::detail
+} // namespace iron_query::impl

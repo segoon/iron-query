@@ -8,7 +8,7 @@
 #include <iron_query/order_by.hpp>
 #include <iron_query/select_item.hpp>
 
-namespace iron_query::detail {
+namespace iron_query::impl {
 
 /// @brief Joins already-rendered terms with ", ".
 std::string JoinCsv(const std::vector<std::string> &items);
@@ -31,4 +31,4 @@ std::vector<std::string> RenderAll(std::initializer_list<T> terms) {
   return rendered;
 }
 
-} // namespace iron_query::detail
+} // namespace iron_query::impl

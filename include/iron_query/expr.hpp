@@ -13,7 +13,7 @@ class Condition;
 class Collation;
 class SelectItem;
 
-namespace detail {
+namespace impl {
 
 /// @brief Integer types that map onto a SQL integer literal. `bool` and the
 /// character types are excluded: they have their own SQL spelling (`TRUE` /
@@ -29,7 +29,7 @@ inline constexpr bool kIsSqlInteger =
     !std::is_same_v<std::remove_cv_t<T>, char16_t> &&
     !std::is_same_v<std::remove_cv_t<T>, char32_t>;
 
-} // namespace detail
+} // namespace impl
 
 /// @brief Arbitrary SQL expression
 /// @note The comparison (`<`, `<=`, `>`, `>=`, `==`, `!=`), arithmetic (`+`,
@@ -39,7 +39,7 @@ inline constexpr bool kIsSqlInteger =
 class [[nodiscard]] Expr final {
 public:
   /// @brief Wraps an integer literal of any width and signedness.
-  template <typename T, std::enable_if_t<detail::kIsSqlInteger<T>, int> = 0>
+  template <typename T, std::enable_if_t<impl::kIsSqlInteger<T>, int> = 0>
   Expr(T value)
       : Expr(FromInteger(
             static_cast<std::conditional_t<std::is_signed_v<T>, long long,
@@ -97,6 +97,25 @@ public:
   /// function's actual signature.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
+  /// @brief COALESCE(args...): the first non-NULL argument.
+  /// @throws std::invalid_argument if `args` is empty.
+  static Expr Coalesce(std::initializer_list<Expr> args);
+
+  /// @brief NULLIF(a, b): NULL if `a` equals `b`, else `a`.
+  static Expr NullIf(const Expr &a, const Expr &b);
+
+  /// @brief GREATEST(args...).
+  /// @throws std::invalid_argument if `args` is empty.
+  /// @note Unlike @ref Max, this is not an aggregate: it picks the greatest
+  /// among its arguments, not among rows.
+  static Expr Greatest(std::initializer_list<Expr> args);
+
+  /// @brief LEAST(args...).
+  /// @throws std::invalid_argument if `args` is empty.
+  /// @note Unlike @ref Min, this is not an aggregate: it picks the least
+  /// among its arguments, not among rows.
+  static Expr Least(std::initializer_list<Expr> args);
+
   /// @brief EXISTS (subquery).
   static Condition Exists(const VirtualTable &subquery);
 
@@ -108,6 +127,9 @@ public:
 
   /// @brief COUNT(*), since "*" is not a valid Expr argument.
   static Expr CountAll();
+
+  /// @brief COUNT(DISTINCT arg).
+  static Expr CountDistinct(const Expr &arg);
 
   /// @brief SUM(arg).
   /// @note Does not check that `arg` is numeric.
@@ -162,6 +184,22 @@ public:
   /// @note Does not check that `this` and `a` are text-typed.
   Condition NotLike(const Expr &a) const;
 
+  /// @brief `this ILIKE a`, a case-insensitive `LIKE`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition ILike(const Expr &a) const;
+
+  /// @brief `this NOT ILIKE a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition NotILike(const Expr &a) const;
+
+  /// @brief `this SIMILAR TO a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition SimilarTo(const Expr &a) const;
+
+  /// @brief `this NOT SIMILAR TO a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition NotSimilarTo(const Expr &a) const;
+
   /// @brief `this IN (a, b, c)`.
   /// @throws std::invalid_argument if `values` is empty: SQL has no empty
   /// `IN ()` list.
@@ -209,6 +247,14 @@ public:
 
   /// @brief `this IS NOT NULL`.
   Condition IsNotNull() const;
+
+  /// @brief `this IS DISTINCT FROM other`, the NULL-safe inequality
+  /// comparison: unlike `!=`, it is never NULL, treating two NULLs as equal.
+  Condition IsDistinctFrom(const Expr &other) const;
+
+  /// @brief `this IS NOT DISTINCT FROM other`, the NULL-safe equality
+  /// comparison.
+  Condition IsNotDistinctFrom(const Expr &other) const;
 
   /// @brief `this < other`.
   Condition operator<(const Expr &other) const;

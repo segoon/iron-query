@@ -1,7 +1,9 @@
 #pragma once
 
+#include <initializer_list>
 #include <iron_query/condition.hpp>
 #include <iron_query/expr.hpp>
+#include <iron_query/select_item.hpp>
 #include <iron_query/table.hpp>
 #include <string>
 
@@ -21,6 +23,14 @@ public:
   /// @brief Sets the WHERE clause.
   Update Where(Condition exp) &&;
 
+  /// @brief Sets the RETURNING clause to a single entry, replacing any
+  /// previously set one.
+  Update Returning(SelectItem item) &&;
+
+  /// @brief Sets the RETURNING clause to a comma-separated list of entries,
+  /// replacing any previously set one.
+  Update Returning(std::initializer_list<SelectItem> items) &&;
+
   /// @throws std::logic_error if no SET assignment was added.
   std::string ToString() const;
 
@@ -28,6 +38,7 @@ private:
   std::string table_;
   std::string set_;
   std::string where_;
+  std::string returning_;
 };
 
 } // namespace iron_query

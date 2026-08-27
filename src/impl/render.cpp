@@ -1,6 +1,6 @@
 #include "render.hpp"
 
-namespace iron_query::detail {
+namespace iron_query::impl {
 
 std::string JoinCsv(const std::vector<std::string> &items) {
   std::string s;
@@ -20,7 +20,11 @@ std::string RenderTerm(const OrderByTerm &term) {
   std::string s = term.expr.ToString();
   if (term.direction == SortDirection::kDescending)
     s += " DESC";
+  if (term.nulls_order == NullsOrder::kFirst)
+    s += " NULLS FIRST";
+  else if (term.nulls_order == NullsOrder::kLast)
+    s += " NULLS LAST";
   return s;
 }
 
-} // namespace iron_query::detail
+} // namespace iron_query::impl

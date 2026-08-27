@@ -1,4 +1,4 @@
-#include "detail/identifier.hpp"
+#include "impl/identifier.hpp"
 #include <iron_query/table_alias.hpp>
 
 namespace iron_query {
@@ -6,7 +6,7 @@ namespace iron_query {
 TableAlias::TableAlias(std::string_view alias) : alias_(alias) {}
 
 TableAlias TableAlias::From(std::string_view alias) {
-  detail::ValidateIdentifier(alias);
+  impl::ValidateIdentifier(alias);
   return TableAlias(alias);
 }
 

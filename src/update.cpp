@@ -1,3 +1,4 @@
+#include "impl/render.hpp"
 #include <iron_query/update.hpp>
 #include <stdexcept>
 #include <utility>
@@ -18,6 +19,15 @@ Update Update::Where(Condition exp) && {
   return std::move(*this);
 }
 
+Update Update::Returning(SelectItem item) && {
+  return std::move(*this).Returning({std::move(item)});
+}
+
+Update Update::Returning(std::initializer_list<SelectItem> items) && {
+  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  return std::move(*this);
+}
+
 std::string Update::ToString() const {
   if (set_.empty())
     throw std::logic_error("iron_query: SET clause is not set");
@@ -25,6 +35,8 @@ std::string Update::ToString() const {
   auto s = "UPDATE " + table_ + " SET " + set_;
   if (!where_.empty())
     s += " WHERE " + where_;
+  if (!returning_.empty())
+    s += " RETURNING " + returning_;
   return s;
 }
 

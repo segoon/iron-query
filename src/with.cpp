@@ -1,4 +1,4 @@
-#include "detail/identifier.hpp"
+#include "impl/identifier.hpp"
 #include <iron_query/with.hpp>
 #include <utility>
 
@@ -15,7 +15,7 @@ WithBuilder::WithBuilder(std::string name, const VirtualTable &query)
     : ctes_(std::move(name) + " AS " + query.ToStringBracketed()) {}
 
 WithBuilder WithBuilder::With(std::string name, const VirtualTable &query) && {
-  detail::ValidateIdentifier(name);
+  impl::ValidateIdentifier(name);
   ctes_ += ", " + std::move(name) + " AS " + query.ToStringBracketed();
   return std::move(*this);
 }
@@ -25,7 +25,7 @@ WithQuery WithBuilder::Main(const VirtualTable &query) && {
 }
 
 WithBuilder With(std::string name, const VirtualTable &query) {
-  detail::ValidateIdentifier(name);
+  impl::ValidateIdentifier(name);
   return WithBuilder(std::move(name), query);
 }
 

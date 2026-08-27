@@ -1,6 +1,7 @@
 # SQL coverage
 
-Status of IronQuery's SQL surface as of the P0 batch (§5 items 1-4).
+Status of IronQuery's SQL surface, kept in sync as features land (see §5 for
+remaining work).
 
 Reference dialect: **PostgreSQL 17**
 ([SQL commands](https://www.postgresql.org/docs/current/sql-commands.html),
@@ -24,26 +25,27 @@ whole point of the product (see `docs/VISION.md`).
 | Statement | Notes |
 |---|---|
 | `SELECT` | `SelectExpr`: select list (with `AS` aliases), `FROM` (single item), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY` (with `ASC`/`DESC`), `LIMIT`, `OFFSET` |
-| `INSERT INTO ... VALUES (...)` | `InsertInto`: single row, explicit column list |
+| `INSERT INTO ... VALUES (...)` | `InsertInto`: explicit column list, single row via `Values()` or multiple rows via `Rows()` |
+| `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | `InsertInto`/`Update`/`DeleteFrom::Returning()` |
+| `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | `InsertInto::OnConflictDoNothing`/`OnConflictDoUpdate` |
 | `UPDATE ... SET ... WHERE` | `Update` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
 | `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
 | `WITH ... AS (...)` | `With(...)...Main(...)`, N non-recursive CTEs |
 | Subqueries | `VirtualTable::operator Expr` (scalar subquery), `Expr::Exists`/`NotExists`, CTE bodies |
+| `SELECT DISTINCT` | `SelectExpr::Distinct()` |
+| `ORDER BY ... NULLS FIRST/LAST` | `OrderByTerm`'s third constructor argument, `NullsOrder` |
+| `INSERT` with a bind-parameter value | `Values()` already takes `Expr`, and `_1..._10` are `Expr`, so `Values({_1, _2})` renders `VALUES ($1, $2)` with no extra API |
 
 ### Unsupported
 
 | Statement / clause | Rarity | Notes |
 |---|---|---|
-| `SELECT DISTINCT` / `DISTINCT ON` | 9 | No API. |
-| Multi-row `INSERT ... VALUES (a),(b)` | 8 | `Values()` can only be called for one row (second call appends into the same tuple). |
-| `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | 8 | PG-specific but ubiquitous there. |
-| `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | 8 | |
+| `DISTINCT ON` | 5 | No API; plain `DISTINCT` is covered by `SelectExpr::Distinct()`. |
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
-| `ORDER BY ... NULLS FIRST/LAST` | 6 | `SortDirection` has only asc/desc. |
 | `UPDATE ... FROM`, `DELETE ... USING` | 6 | |
 | `JOIN ... USING (cols)` / `NATURAL JOIN` | 5 | Only `ON`. |
 | `ORDER BY`/`LIMIT` applied to a `UNION` result | 5 | `SetOp` has no clauses of its own. |
@@ -75,6 +77,9 @@ whole point of the product (see `docs/VISION.md`).
 | `AND` / `OR` / `NOT` | `Condition::operator&& \|\| !` |
 | `BETWEEN` / `NOT BETWEEN` | `Expr::Between`/`NotBetween` |
 | `LIKE` / `NOT LIKE` | `Expr::Like`/`NotLike` |
+| `ILIKE` / `NOT ILIKE` | `Expr::ILike`/`NotILike` |
+| `SIMILAR TO` / `NOT SIMILAR TO` | `Expr::SimilarTo`/`NotSimilarTo` |
+| `IS [NOT] DISTINCT FROM` | `Expr::IsDistinctFrom`/`IsNotDistinctFrom` |
 | `IN` / `NOT IN` | `Expr::In`/`NotIn`, over a value list or a subquery |
 | `= ANY` / `<> ALL` | `Expr::EqAny`/`NeAll`, over an array expression or a subquery |
 | `NULL` / `TRUE` / `FALSE` literals | `Expr::Null`, `Expr::Bool` |
@@ -86,7 +91,8 @@ whole point of the product (see `docs/VISION.md`).
 | `CAST(x AS t)` | `Expr::CastRaw` (type is raw) |
 | `COLLATE` | `Expr::Collate` + `Collation` |
 | Function call | `Expr::Call(name, {args})`, name validated as an identifier |
-| Aggregates | `Count`, `CountAll`, `Sum`, `Avg`, `Min`, `Max` |
+| Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max` |
+| `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | `Expr::Coalesce`/`NullIf`/`Greatest`/`Least` |
 | `CASE WHEN ... THEN ... ELSE ... END` | `Case()...When().Then().Else().End()` (searched form) |
 
 ### Unsupported
@@ -95,12 +101,10 @@ whole point of the product (see `docs/VISION.md`).
 |---|---|---|
 | String concatenation `\|\|` | 8 | Collides with `operator\|\|` on `Condition`; needs a named `Concat`. |
 | Unary minus, unary `NOT` on `Expr` | 8 | `-x` has no API. |
-| `ILIKE`, `SIMILAR TO`, `~` / `!~` regex | 7 | PG-specific, very common in search filters. |
-| `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` | 6 | The NULL-safe comparison; important for correctness. |
+| `~` / `!~` regex | 6 | PG-specific, common in search filters. |
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
-| Aggregate modifiers: `COUNT(DISTINCT x)`, `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 6 | `COUNT(DISTINCT x)` alone is very common. |
+| Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`. |
 | More aggregates: `string_agg`, `array_agg`, `json_agg`, `bool_and/or` | 5 | `Expr::Call` covers them, but arg-count/typo safety is lost for none — this is arguably fine. |
-| `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | 6 | Reachable via `Expr::Call`; deserve named helpers since they're keywords, not functions. |
 | Simple `CASE expr WHEN v THEN ...` form | 4 | Only the searched form exists. |
 | `x::type` shorthand and a typed (non-raw) type vocabulary | 5 | `CastRaw` is the only cast, and it's a raw hole. |
 | Array constructors / operators (`ARRAY[...]`, `@>`, `&&`, `ANY`) | 4 | |
@@ -155,7 +159,7 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 1. **`SelectExpr::Select(initializer_list)` appended instead of replacing.** Two calls
    silently concatenated. `OrderBy`/`GroupBy` assigned in both overloads, so it was a
    slip, not a design. Fixed by giving each comma-separated clause a single assignment
-   site (`RenderAll` in `src/detail/render.hpp`), with the one-term overloads delegating
+   site (`RenderAll` in `src/impl/render.hpp`), with the one-term overloads delegating
    to the many-term ones — the two can no longer disagree.
 2. **`VirtualTable::As` wrapped the alias inside the parentheses**, emitting
    `(foo AS bar)`, `((SELECT …) AS s)` and `((a JOIN b) AS j)`. PostgreSQL's
@@ -176,9 +180,6 @@ regression test. Recorded here because two of them shaped the priorities in §5.
 
 **Caveat:** no PostgreSQL or `libpg_query` is available in this environment, so the
 corrected strings were checked against the grammar by reading it, not by parsing them.
-Defect #2 is precisely what a string-comparison-only suite cannot catch — a test was
-asserting `FROM (foo AS bar)`, pinning the bug. See P0 item 6 in §5. The same caveat
-applies to everything added for P0 items 1-4.
 
 ---
 
@@ -188,67 +189,40 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P0 — the library is hard to use without these**
 
-1. ~~Make `Join` a first-class `FROM` source.~~ Done. `From()`/`SelectExpr` now take a
-   `const VirtualTable&` and render it through a new `ToStringAsFromItem()` virtual:
-   `Table` returns its bare name, `Join` returns itself **unbracketed** (PostgreSQL's
-   `table_ref` allows `'(' joined_table ')'` only when an alias follows), and everything
-   else — every subquery — throws, since PostgreSQL requires an alias there. Use `As()`.
-   **`DeleteFrom`/`Update` deliberately still take a `const Table&`:** their target is a
-   plain `relation_expr`, never a join or subquery, so widening them would only let the
-   builder emit SQL that cannot parse. No `SelectExpr::Join(...)` chain step either —
-   `From(Join(a, b, Inner()).On(cond))` already composes, and a second builder type for
-   it would earn nothing.
-2. ~~`Expr::Null()`, `Expr::Bool()`, `Expr(double)`, `Expr(int64_t)`.~~ Done, via
-   constrained template constructors (one for integers of any width and signedness, one
-   for floating point) plus deleted `bool`/`char`/`const char*` overloads — plain
-   overloads would have made `Expr(unsigned)` ambiguous and let `Expr("text")` decay to
-   `TRUE`. Doubles render through `std::to_chars` (shortest round-trip); NaN/infinity
-   throw, since SQL spells them as typed literals.
-3. ~~`IN` with a value list and with a subquery.~~ Done, plus `EqAny`/`NeAll` for the
-   bind-parameter form. The old `In(const Expr&)`/`NotIn(const Expr&)` are **removed**:
-   they emitted `x IN a` unparenthesized, so the only way to use them was to concatenate
-   `"(1, 2, 3)"` by hand.
-4. ~~Column aliases in the select list.~~ Done. `Expr::As`/`Column::As` return a
-   `SelectItem`, a new type that only `Select()` accepts, so `x AS y` cannot leak into a
-   `WHERE` or a function argument.
-5. ~~Fix defects #1 and #4.~~ Done — see §4.
-6. **Validate generated SQL against a real parser.** Every test is still a string
-   comparison, which is why defect #2 survived to be found by reading. Feeding each
-   expected string through `postgres --check`/`libpg_query`/an ephemeral PG container in
-   CI would turn the whole suite into a syntax oracle — the cheapest possible guard for
-   a library whose entire value proposition is "your SQL parses". **Now the only open P0
-   item, and the highest-value one**: the §4 fixes and everything added for items 1-4
-   above are grammar-checked by hand, not by a parser. Deliberately deferred out of the
-   P0 batch as CI/infrastructure work rather than API work.
+1. **Validate generated SQL against a real parser.** Every test is still a string
+   comparison. Feeding each expected string through `postgres --check`/`libpg_query`/an
+   ephemeral PG container in CI would turn the whole suite into a syntax oracle — the
+   cheapest possible guard for a library whose entire value proposition is "your SQL
+   parses". Everything added so far is grammar-checked by hand, not by a parser (see the
+   §4 caveat). Deferred out of the P0 batch as CI/infrastructure work rather than API
+   work.
 
 **P1 — routine work that currently needs `FromRaw`**
 
-6. `SELECT DISTINCT` / `DISTINCT ON`.
-7. Multi-row `INSERT`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`.
-8. `Limit`/`Offset` taking an `Expr` so bind parameters work.
-9. `ORDER BY ... NULLS FIRST/LAST`.
-10. `COUNT(DISTINCT x)`, `FILTER (WHERE ...)`; named `Coalesce`/`NullIf`/`Greatest`/`Least`.
-11. `ILIKE` / regex match / `IS [NOT] DISTINCT FROM`.
-12. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
+2. `INSERT INTO ... SELECT`.
+3. `Limit`/`Offset` taking an `Expr` so bind parameters work.
+4. `FILTER (WHERE ...)`.
+5. Regex match (`~`/`!~`).
+6. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
 
 **P2 — makes the schema-safety promise real**
 
-13. **Qualified column references end to end**: `TableAlias::Dot` should return `Expr`,
-    and `TableWithColumns` should hand out `Column`s already bound to their table/alias,
-    so the README example needs no `FromRaw` at all. This subsumes the `Column` operator
-    duplication — make `Column` convert to a fully-qualified `Expr` once instead of
-    re-declaring operators on it.
-14. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
-    `Cast`), or drop them.
-15. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
-    compile error rather than a convention.
+7. **Qualified column references end to end**: `TableAlias::Dot` should return `Expr`,
+   and `TableWithColumns` should hand out `Column`s already bound to their table/alias,
+   so the README example needs no `FromRaw` at all. This subsumes the `Column` operator
+   duplication — make `Column` convert to a fully-qualified `Expr` once instead of
+   re-declaring operators on it.
+8. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
+   `Cast`), or drop them.
+9. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
+   compile error rather than a convention.
 
 **P3 — breadth**
 
-16. Window functions.
-17. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
-18. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
-19. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
+10. Window functions.
+11. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
+12. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
+13. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
 
 **Explicitly out of scope** (worth writing into `docs/VISION.md`): DDL, transaction
 control, `EXPLAIN`, `COPY`, permissions, and anything an ORM would do (mapping rows to

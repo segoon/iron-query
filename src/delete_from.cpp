@@ -1,3 +1,4 @@
+#include "impl/render.hpp"
 #include <iron_query/delete_from.hpp>
 #include <stdexcept>
 #include <utility>
@@ -11,6 +12,15 @@ DeleteFrom DeleteFrom::Where(Condition exp) && {
   return std::move(*this);
 }
 
+DeleteFrom DeleteFrom::Returning(SelectItem item) && {
+  return std::move(*this).Returning({std::move(item)});
+}
+
+DeleteFrom DeleteFrom::Returning(std::initializer_list<SelectItem> items) && {
+  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  return std::move(*this);
+}
+
 std::string DeleteFrom::ToString() const {
   if (from_.empty())
     throw std::logic_error("iron_query: FROM clause is not set");
@@ -18,6 +28,8 @@ std::string DeleteFrom::ToString() const {
   auto s = "DELETE FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
+  if (!returning_.empty())
+    s += " RETURNING " + returning_;
   return s;
 }
 
