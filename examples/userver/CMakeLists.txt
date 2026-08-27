@@ -5,6 +5,10 @@ project(iron-query-userver-example CXX)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(DownloadUserver)
 
+# userver builds the postgresql driver only when explicitly requested (it
+# defaults to OFF unless USERVER_BUILD_ALL_COMPONENTS is set).
+set(USERVER_FEATURE_POSTGRESQL ON CACHE BOOL "" FORCE)
+
 find_package(userver COMPONENTS postgresql QUIET)
 if(NOT userver_FOUND)
   # Tries TRY_DIR first, falls back to downloading userver from GitHub.
