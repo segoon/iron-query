@@ -1,3 +1,3 @@
-- userver wrappers
-- TODOs in code
-- example project
+- example with raw libpq (?)
+- CI check is required
+- pretty formatting with CTEs

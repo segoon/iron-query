@@ -1,8 +1,20 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <limits>
+
 #include <iron_query/iron_query.hpp>
 
 using namespace iron_query;
+
+namespace {
+// EXPECT_THROW discards the value of the statement it evaluates, which is
+// the whole point of the macro, but that trips -Wunused-result against our
+// [[nodiscard]] builder types. Wrapping the statement in Ignore() marks the
+// discard as intentional at each call site.
+template <typename T>
+void Ignore(T &&) {} // NOLINT(readability-named-parameter)
+} // namespace
 
 TEST(Select, From) {
   Table tbl = Table::FromRaw("test");
@@ -24,6 +36,20 @@ TEST(Select, Multi) {
   EXPECT_EQ(
       From(tbl).Select({Expr::FromRaw("a"), Expr::FromRaw("b")}).ToString(),
       "SELECT a, b FROM test");
+}
+
+TEST(Select, ClauseListsReplacePreviousLists) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .Select({Expr::FromRaw("a")})
+                .Select({Expr::FromRaw("b")})
+                .GroupBy({Expr::FromRaw("a")})
+                .GroupBy({Expr::FromRaw("b")})
+                .OrderBy({Expr::FromRaw("a")})
+                .OrderBy({Expr::FromRaw("b")})
+                .ToString(),
+            "SELECT b FROM test GROUP BY b ORDER BY b");
 }
 
 TEST(Select, Where) {
@@ -366,8 +392,9 @@ TEST(With, UsableAsSubquery) {
 TEST(With, InvalidNameThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_THROW(With("not an identifier", From(tbl).Select(Expr::FromRaw("a"))),
-               std::invalid_argument);
+  EXPECT_THROW(
+      Ignore(With("not an identifier", From(tbl).Select(Expr::FromRaw("a")))),
+      std::invalid_argument);
 }
 
 TEST(With, DottedNameAllowed) {
@@ -389,6 +416,74 @@ TEST(Join, SelectSelect) {
             "(SELECT a FROM foo) CROSS JOIN (SELECT b FROM foo) ON a = b");
 }
 
+// PostgreSQL attaches a table alias directly to the FROM item; parentheses are
+// only ever allowed around a bare joined_table.
+class AliasTest : public ::testing::Test {
+protected:
+  const Table foo = Table::FromRaw("foo");
+  const Table bar = Table::FromRaw("bar");
+};
+
+TEST_F(AliasTest, TableIsNotParenthesized) {
+  EXPECT_EQ(foo.As("t").ToString(), "foo AS t");
+  EXPECT_EQ(From(foo.As("t")).Select(Expr::FromRaw("*")).ToString(),
+            "SELECT * FROM foo AS t");
+}
+
+TEST_F(AliasTest, SubqueryKeepsExactlyOnePairOfParens) {
+  EXPECT_EQ(From(foo).Select(Expr::FromRaw("a")).As("s").ToString(),
+            "(SELECT a FROM foo) AS s");
+}
+
+TEST_F(AliasTest, JoinIsParenthesized) {
+  EXPECT_EQ(Join(foo, bar, Inner()).As("j").ToString(),
+            "(foo INNER JOIN bar) AS j");
+}
+
+TEST_F(AliasTest, InvalidNameThrows) {
+  EXPECT_THROW(Ignore(foo.As("not an identifier")), std::invalid_argument);
+  EXPECT_THROW(Ignore(foo.As("")), std::invalid_argument);
+}
+
+// A join is a FROM source in its own right; a subquery is one only once it has
+// been given an alias.
+class FromSourceTest : public ::testing::Test {
+protected:
+  const Table foo = Table::FromRaw("foo");
+  const Table bar = Table::FromRaw("bar");
+  const Expr star = Expr::FromRaw("*");
+};
+
+TEST_F(FromSourceTest, Join) {
+  // No parentheses: PostgreSQL's table_ref allows "( joined_table )" only when
+  // an alias follows.
+  EXPECT_EQ(
+      From(Join(foo, bar, Inner()).On(Condition::FromRaw("foo.a = bar.b")))
+          .Select(star)
+          .Where(Condition::FromRaw("foo.c > 0"))
+          .ToString(),
+      "SELECT * FROM foo INNER JOIN bar ON foo.a = bar.b "
+      "WHERE foo.c > 0");
+}
+
+TEST_F(FromSourceTest, AliasedJoin) {
+  EXPECT_EQ(From(Join(foo, bar, Inner()).As("j")).Select(star).ToString(),
+            "SELECT * FROM (foo INNER JOIN bar) AS j");
+}
+
+TEST_F(FromSourceTest, AliasedSubquery) {
+  EXPECT_EQ(From(From(foo).Select(star).As("s")).Select(star).ToString(),
+            "SELECT * FROM (SELECT * FROM foo) AS s");
+}
+
+TEST_F(FromSourceTest, UnaliasedSubqueryThrows) {
+  // PostgreSQL: "subquery in FROM must have an alias".
+  EXPECT_THROW(Ignore(From(From(foo).Select(star))), std::logic_error);
+  EXPECT_THROW(Ignore(From(SetOp(From(foo).Select(star), From(bar).Select(star),
+                                 Union()))),
+               std::logic_error);
+}
+
 TEST(Insert, Basic) {
   Table tbl = Table::FromRaw("foo");
 
@@ -397,6 +492,30 @@ TEST(Insert, Basic) {
                 .Values({1, 2})
                 .ToString(),
             "INSERT INTO foo (a, b) VALUES (1, 2)");
+}
+
+TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Columns({Expr::FromRaw("b")})
+                .Values({1})
+                .Values({2})
+                .ToString(),
+            "INSERT INTO foo (b) VALUES (2)");
+}
+
+TEST(Insert, ArityMismatchThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                          .Values({1})),
+               std::logic_error);
+  EXPECT_THROW(Ignore(InsertInto(tbl).Values({1}).Columns(
+                   {Expr::FromRaw("a"), Expr::FromRaw("b")})),
+               std::logic_error);
 }
 
 TEST(Insert, MissingColumnsThrows) {
@@ -451,7 +570,28 @@ TEST(Column, As) {
 
   auto bar = "bar";
   EXPECT_EQ(From(tbl.As(bar)).Select(Expr::FromRaw(bar).Dot(name)).ToString(),
-            "SELECT bar.name FROM (foo AS bar)");
+            "SELECT bar.name FROM foo AS bar");
+}
+
+TEST(Select, ColumnAlias) {
+  Table tbl = Table::FromRaw("foo");
+  Column age{"age", "BIGINT"};
+
+  EXPECT_EQ(From(tbl)
+                .Select({age.As("years"), (Expr(age) + 1).As("next_year")})
+                .ToString(),
+            "SELECT age AS years, age + 1 AS next_year FROM foo");
+  EXPECT_EQ(From(tbl).Select(Expr::CountAll().As("n")).ToString(),
+            "SELECT COUNT(*) AS n FROM foo");
+}
+
+TEST(Select, AliasInvalidNameThrows) {
+  Column age{"age", "BIGINT"};
+
+  EXPECT_THROW(Ignore(age.As("not an identifier")), std::invalid_argument);
+  EXPECT_THROW(Ignore(age.As("")), std::invalid_argument);
+  // A column alias, unlike a CTE or table name, cannot be qualified.
+  EXPECT_THROW(Ignore(age.As("a.b")), std::invalid_argument);
 }
 
 TEST(Column, Compare) {
@@ -483,8 +623,9 @@ TEST(TableAlias, Dot) {
 }
 
 TEST(TableAlias, InvalidNameThrows) {
-  EXPECT_THROW(TableAlias::From("not an identifier"), std::invalid_argument);
-  EXPECT_THROW(TableAlias::From(""), std::invalid_argument);
+  EXPECT_THROW(Ignore(TableAlias::From("not an identifier")),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(TableAlias::From("")), std::invalid_argument);
 }
 
 TEST(Expr, symbol) {
@@ -536,6 +677,16 @@ TEST(Expr, Index) {
   EXPECT_EQ(Expr::FromRaw("a")[Expr::FromRaw("b")].ToString(), "a[b]");
 }
 
+TEST(Expr, IndexPrecedence) {
+  // Subscripting binds looser than ".", so the subscript needs bracketing
+  // once it is embedded into a tighter context.
+  EXPECT_EQ(
+      Expr::FromRaw("a")[Expr::FromRaw("b")].Dot(Expr::FromRaw("c")).ToString(),
+      "(a[b]).c");
+  EXPECT_EQ((Expr::FromRaw("a")[Expr::FromRaw("b")] + 1).ToString(),
+            "a[b] + 1");
+}
+
 TEST(Expr, Exp) { EXPECT_EQ((Expr::FromRaw("a") ^ 2).ToString(), "a ^ 2"); }
 
 TEST(Expr, Between) {
@@ -569,6 +720,37 @@ TEST(Expr, NotIn) {
                 .NotIn(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
                 .ToString(),
             "a NOT IN (SELECT bar FROM foo)");
+}
+
+TEST(Expr, InValueList) {
+  EXPECT_EQ(Expr::FromRaw("a").In({1, 2, 3}).ToString(), "a IN (1, 2, 3)");
+  EXPECT_EQ(Expr::FromRaw("a").In({_1}).ToString(), "a IN ($1)");
+  EXPECT_EQ(Expr::FromRaw("a").NotIn({1, 2}).ToString(), "a NOT IN (1, 2)");
+}
+
+TEST(Expr, InEmptyListThrows) {
+  // "a IN ()" is not valid SQL, so an empty list can only be a caller bug.
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").In({})), std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").NotIn({})), std::invalid_argument);
+}
+
+TEST(Expr, EqAnyNeAll) {
+  EXPECT_EQ(Expr::FromRaw("a").EqAny(_1).ToString(), "a = ANY ($1)");
+  EXPECT_EQ(Expr::FromRaw("a").NeAll(_1).ToString(), "a <> ALL ($1)");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .EqAny(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
+                .ToString(),
+            "a = ANY (SELECT bar FROM foo)");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .NeAll(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
+                .ToString(),
+            "a <> ALL (SELECT bar FROM foo)");
+}
+
+TEST(Expr, EqAnyPrecedence) {
+  EXPECT_EQ(
+      (Expr::FromRaw("a").EqAny(_1) && Condition::FromRaw("b")).ToString(),
+      "a = ANY ($1) AND b");
 }
 
 TEST(Expr, Is) {
@@ -605,6 +787,46 @@ TEST(Expr, Compare) {
   EXPECT_EQ((Expr(1) != 2).ToString(), "1 != 2");
 }
 
+TEST(Expr, Null) {
+  EXPECT_EQ(Expr::Null().ToString(), "NULL");
+  EXPECT_EQ(Update(Table::FromRaw("foo"))
+                .Set(Expr::FromRaw("a"), Expr::Null())
+                .ToString(),
+            "UPDATE foo SET a = NULL");
+}
+
+TEST(Expr, Bool) {
+  EXPECT_EQ(Expr::Bool(true).ToString(), "TRUE");
+  EXPECT_EQ(Expr::Bool(false).ToString(), "FALSE");
+}
+
+TEST(Expr, IntegerLiterals) {
+  EXPECT_EQ(Expr(0).ToString(), "0");
+  EXPECT_EQ(Expr(-42).ToString(), "-42");
+  EXPECT_EQ(Expr(std::numeric_limits<std::int64_t>::min()).ToString(),
+            "-9223372036854775808");
+  EXPECT_EQ(Expr(std::numeric_limits<std::uint64_t>::max()).ToString(),
+            "18446744073709551615");
+}
+
+TEST(Expr, DoubleLiterals) {
+  // std::to_string would render these as "0.100000" and "1.000000".
+  EXPECT_EQ(Expr(0.1).ToString(), "0.1");
+  EXPECT_EQ(Expr(1.0).ToString(), "1.0");
+  EXPECT_EQ(Expr(-2.5F).ToString(), "-2.5");
+  EXPECT_EQ(Expr(1e300).ToString(), "1e+300");
+}
+
+TEST(Expr, NonFiniteDoubleThrows) {
+  // Named locals: "Expr(std::numeric_limits<double>::infinity())" would be
+  // parsed as a declaration, not a call.
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const double inf = std::numeric_limits<double>::infinity();
+
+  EXPECT_THROW(Expr{nan}.ToString(), std::invalid_argument);
+  EXPECT_THROW(Expr{inf}.ToString(), std::invalid_argument);
+}
+
 TEST(Expr, Literal) {
   EXPECT_EQ(Expr::Literal("x").ToString(), "'x'");
   EXPECT_EQ(Expr::Literal("it's").ToString(), "'it''s'");
@@ -626,8 +848,9 @@ TEST(Expr, Call) {
 }
 
 TEST(Expr, CallInvalidNameThrows) {
-  EXPECT_THROW(Expr::Call("not an identifier", {}), std::invalid_argument);
-  EXPECT_THROW(Expr::Call("", {}), std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::Call("not an identifier", {})),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::Call("", {})), std::invalid_argument);
 }
 
 TEST(Expr, Case) {
@@ -652,11 +875,11 @@ TEST(Expr, CaseMultiWhenElse) {
 }
 
 TEST(Expr, CaseThenWithoutWhenThrows) {
-  EXPECT_THROW(Case().Then(Expr::FromRaw("x")), std::logic_error);
+  EXPECT_THROW(Ignore(Case().Then(Expr::FromRaw("x"))), std::logic_error);
 }
 
 TEST(Expr, CaseEndWithoutWhenThrows) {
-  EXPECT_THROW(Case().End(), std::logic_error);
+  EXPECT_THROW(Ignore(Case().End()), std::logic_error);
 }
 
 TEST(Expr, Exists) {
@@ -682,9 +905,9 @@ TEST(Expr, Aggregates) {
 TEST(Expr, LiteralInjectionAttempt) {
   // Even a hostile value can't break out of the quoted literal.
   EXPECT_EQ(Expr::FromRaw("x")
-                .In(Expr::Literal("'; DROP TABLE users; --"))
+                .In({Expr::Literal("'; DROP TABLE users; --")})
                 .ToString(),
-            "x IN '''; DROP TABLE users; --'");
+            "x IN ('''; DROP TABLE users; --')");
 }
 
 // Example of autogenerated declarations

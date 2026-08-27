@@ -45,16 +45,18 @@ using namespace iron_query;
 
 ...
 Table users = Table::FromRaw("users");
-TableAlias left = TableAlias::From("left");
-TableAlias right = TableAlias::From("right");
+// "left"/"right" would not do: they are reserved words in PostgreSQL.
+TableAlias lhs = TableAlias::From("lhs");
+TableAlias rhs = TableAlias::From("rhs");
 Column name{"name", "TEXT"};
 Column age{"age", "BIGINT"};
 
-std::string query = Join(
-    From(users.As("left")).Select(Expr::FromRaw("*")),
-    From(users.As("right")).Select({name, age}),
-    Inner()
-).On(Expr::FromRaw(left.Dot("second_name")) == Expr::FromRaw(right.Dot(name)))
+std::string query = From(
+    Join(users.As("lhs"), users.As("rhs"), Inner())
+        .On(Expr::FromRaw(lhs.Dot("second_name")) ==
+            Expr::FromRaw(rhs.Dot(name))))
+    .Select({Expr::FromRaw(lhs.Dot(name)).As("name"), age})
+    .Where(Expr(age).Between(18, 65) && Expr(age).NotIn({30, 40}))
     .ToString();
 
 query = DeleteFrom(users).Where(age < 10).ToString();
@@ -71,7 +73,7 @@ Never pass untrusted/user-controlled data to any of these, or you will have a SQ
 vulnerability.
 
 A few other entry points take identifier-like arguments (`Expr::Call`'s function name,
-`With`'s CTE name, `TableAlias::From`'s alias) and validate them as a plain or
+`With`'s CTE name, `TableAlias::From`'s and `VirtualTable::As`'s alias) and validate them as a plain or
 dot-qualified SQL identifier, throwing `std::invalid_argument` otherwise — these are safer
 to feed with dynamic input than the raw fragments above, though `Expr::Ident` is still the
 right choice for column/table names that need proper quoting.

@@ -48,3 +48,15 @@ jobs:
 
       - name: Test
         run: make sanitize
+
+  required:
+    if: always()
+    needs: [build-and-test, lint, sanitizers]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
