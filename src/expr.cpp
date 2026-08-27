@@ -116,6 +116,10 @@ Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
 
 Expr Expr::CountAll() { return Expr(std::string("COUNT(*)")); }
 
+Expr Expr::CountDistinct(const Expr &arg) {
+  return Expr("COUNT(DISTINCT " + arg.ToString() + ")");
+}
+
 Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
 
 Expr Expr::Avg(const Expr &arg) { return Call("AVG", {arg}); }
@@ -176,6 +180,30 @@ Condition Expr::Like(const Expr &a) const {
 
 Condition Expr::NotLike(const Expr &a) const {
   return Condition(Extract(OperatorPrecedence::kBetween) + " NOT LIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::ILike(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " ILIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotILike(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT ILIKE " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::SimilarTo(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " SIMILAR TO " +
+                       a.Extract(OperatorPrecedence::kBetween),
+                   OperatorPrecedence::kBetween);
+}
+
+Condition Expr::NotSimilarTo(const Expr &a) const {
+  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT SIMILAR TO " +
                        a.Extract(OperatorPrecedence::kBetween),
                    OperatorPrecedence::kBetween);
 }
@@ -262,6 +290,18 @@ Condition Expr::IsNull() const {
 
 Condition Expr::IsNotNull() const {
   return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT NULL",
+                   OperatorPrecedence::kIs);
+}
+
+Condition Expr::IsDistinctFrom(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS DISTINCT FROM " +
+                       other.Extract(OperatorPrecedence::kIs),
+                   OperatorPrecedence::kIs);
+}
+
+Condition Expr::IsNotDistinctFrom(const Expr &other) const {
+  return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT DISTINCT FROM " +
+                       other.Extract(OperatorPrecedence::kIs),
                    OperatorPrecedence::kIs);
 }
 

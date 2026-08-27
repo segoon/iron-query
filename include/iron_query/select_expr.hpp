@@ -18,6 +18,9 @@ public:
   /// @throws std::logic_error if `tbl` is a subquery without an alias.
   SelectExpr(const VirtualTable &tbl);
 
+  /// @brief Adds `DISTINCT` to the SELECT list, eliminating duplicate rows.
+  SelectExpr Distinct() &&;
+
   /// @brief Sets the SELECT list to a single entry, replacing any previously
   /// set list.
   SelectExpr Select(SelectItem item) &&;
@@ -77,6 +80,7 @@ public:
 private:
   void EnsureValid() const;
 
+  bool distinct_{false};
   std::string from_;
   std::vector<std::string> select_;
   std::string where_;

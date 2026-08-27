@@ -3,7 +3,8 @@
 
 namespace iron_query {
 
-OrderByTerm::OrderByTerm(Expr expr, SortDirection direction)
-    : expr(std::move(expr)), direction(direction) {}
+OrderByTerm::OrderByTerm(Expr expr, SortDirection direction,
+                         NullsOrder nulls_order)
+    : expr(std::move(expr)), direction(direction), nulls_order(nulls_order) {}
 
 } // namespace iron_query

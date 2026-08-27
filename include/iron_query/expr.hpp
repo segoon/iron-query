@@ -109,6 +109,9 @@ public:
   /// @brief COUNT(*), since "*" is not a valid Expr argument.
   static Expr CountAll();
 
+  /// @brief COUNT(DISTINCT arg).
+  static Expr CountDistinct(const Expr &arg);
+
   /// @brief SUM(arg).
   /// @note Does not check that `arg` is numeric.
   static Expr Sum(const Expr &arg);
@@ -162,6 +165,22 @@ public:
   /// @note Does not check that `this` and `a` are text-typed.
   Condition NotLike(const Expr &a) const;
 
+  /// @brief `this ILIKE a`, a case-insensitive `LIKE`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition ILike(const Expr &a) const;
+
+  /// @brief `this NOT ILIKE a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition NotILike(const Expr &a) const;
+
+  /// @brief `this SIMILAR TO a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition SimilarTo(const Expr &a) const;
+
+  /// @brief `this NOT SIMILAR TO a`.
+  /// @note Does not check that `this` and `a` are text-typed.
+  Condition NotSimilarTo(const Expr &a) const;
+
   /// @brief `this IN (a, b, c)`.
   /// @throws std::invalid_argument if `values` is empty: SQL has no empty
   /// `IN ()` list.
@@ -209,6 +228,14 @@ public:
 
   /// @brief `this IS NOT NULL`.
   Condition IsNotNull() const;
+
+  /// @brief `this IS DISTINCT FROM other`, the NULL-safe inequality
+  /// comparison: unlike `!=`, it is never NULL, treating two NULLs as equal.
+  Condition IsDistinctFrom(const Expr &other) const;
+
+  /// @brief `this IS NOT DISTINCT FROM other`, the NULL-safe equality
+  /// comparison.
+  Condition IsNotDistinctFrom(const Expr &other) const;
 
   /// @brief `this < other`.
   Condition operator<(const Expr &other) const;

@@ -31,19 +31,21 @@ whole point of the product (see `docs/VISION.md`).
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
 | `WITH ... AS (...)` | `With(...)...Main(...)`, N non-recursive CTEs |
 | Subqueries | `VirtualTable::operator Expr` (scalar subquery), `Expr::Exists`/`NotExists`, CTE bodies |
+| `SELECT DISTINCT` | `SelectExpr::Distinct()` |
+| `ORDER BY ... NULLS FIRST/LAST` | `OrderByTerm`'s third constructor argument, `NullsOrder` |
+| `INSERT` with a bind-parameter value | `Values()` already takes `Expr`, and `_1..._10` are `Expr`, so `Values({_1, _2})` renders `VALUES ($1, $2)` with no extra API |
 
 ### Unsupported
 
 | Statement / clause | Rarity | Notes |
 |---|---|---|
-| `SELECT DISTINCT` / `DISTINCT ON` | 9 | No API. |
+| `DISTINCT ON` | 5 | No API; plain `DISTINCT` is covered by `SelectExpr::Distinct()`. |
 | Multi-row `INSERT ... VALUES (a),(b)` | 8 | `Values()` can only be called for one row (second call appends into the same tuple). |
 | `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | 8 | PG-specific but ubiquitous there. |
 | `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | 8 | |
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
-| `ORDER BY ... NULLS FIRST/LAST` | 6 | `SortDirection` has only asc/desc. |
 | `UPDATE ... FROM`, `DELETE ... USING` | 6 | |
 | `JOIN ... USING (cols)` / `NATURAL JOIN` | 5 | Only `ON`. |
 | `ORDER BY`/`LIMIT` applied to a `UNION` result | 5 | `SetOp` has no clauses of its own. |
@@ -75,6 +77,9 @@ whole point of the product (see `docs/VISION.md`).
 | `AND` / `OR` / `NOT` | `Condition::operator&& \|\| !` |
 | `BETWEEN` / `NOT BETWEEN` | `Expr::Between`/`NotBetween` |
 | `LIKE` / `NOT LIKE` | `Expr::Like`/`NotLike` |
+| `ILIKE` / `NOT ILIKE` | `Expr::ILike`/`NotILike` |
+| `SIMILAR TO` / `NOT SIMILAR TO` | `Expr::SimilarTo`/`NotSimilarTo` |
+| `IS [NOT] DISTINCT FROM` | `Expr::IsDistinctFrom`/`IsNotDistinctFrom` |
 | `IN` / `NOT IN` | `Expr::In`/`NotIn`, over a value list or a subquery |
 | `= ANY` / `<> ALL` | `Expr::EqAny`/`NeAll`, over an array expression or a subquery |
 | `NULL` / `TRUE` / `FALSE` literals | `Expr::Null`, `Expr::Bool` |
@@ -86,7 +91,7 @@ whole point of the product (see `docs/VISION.md`).
 | `CAST(x AS t)` | `Expr::CastRaw` (type is raw) |
 | `COLLATE` | `Expr::Collate` + `Collation` |
 | Function call | `Expr::Call(name, {args})`, name validated as an identifier |
-| Aggregates | `Count`, `CountAll`, `Sum`, `Avg`, `Min`, `Max` |
+| Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max` |
 | `CASE WHEN ... THEN ... ELSE ... END` | `Case()...When().Then().Else().End()` (searched form) |
 
 ### Unsupported
@@ -95,10 +100,9 @@ whole point of the product (see `docs/VISION.md`).
 |---|---|---|
 | String concatenation `\|\|` | 8 | Collides with `operator\|\|` on `Condition`; needs a named `Concat`. |
 | Unary minus, unary `NOT` on `Expr` | 8 | `-x` has no API. |
-| `ILIKE`, `SIMILAR TO`, `~` / `!~` regex | 7 | PG-specific, very common in search filters. |
-| `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` | 6 | The NULL-safe comparison; important for correctness. |
+| `~` / `!~` regex | 6 | PG-specific, common in search filters. |
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
-| Aggregate modifiers: `COUNT(DISTINCT x)`, `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 6 | `COUNT(DISTINCT x)` alone is very common. |
+| Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`. |
 | More aggregates: `string_agg`, `array_agg`, `json_agg`, `bool_and/or` | 5 | `Expr::Call` covers them, but arg-count/typo safety is lost for none — this is arguably fine. |
 | `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | 6 | Reachable via `Expr::Call`; deserve named helpers since they're keywords, not functions. |
 | Simple `CASE expr WHEN v THEN ...` form | 4 | Only the searched form exists. |
@@ -223,12 +227,15 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P1 — routine work that currently needs `FromRaw`**
 
-6. `SELECT DISTINCT` / `DISTINCT ON`.
+6. ~~`SELECT DISTINCT`~~ Done, via `SelectExpr::Distinct()`. `DISTINCT ON` remains unsupported.
 7. Multi-row `INSERT`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`.
-8. `Limit`/`Offset` taking an `Expr` so bind parameters work.
-9. `ORDER BY ... NULLS FIRST/LAST`.
-10. `COUNT(DISTINCT x)`, `FILTER (WHERE ...)`; named `Coalesce`/`NullIf`/`Greatest`/`Least`.
-11. `ILIKE` / regex match / `IS [NOT] DISTINCT FROM`.
+8. `Limit`/`Offset` taking an `Expr` so bind parameters work. (`INSERT`'s `Values()` already
+   accepts bind placeholders, since it takes plain `Expr` and `_1..._10` are `Expr`.)
+9. ~~`ORDER BY ... NULLS FIRST/LAST`~~ Done, via `OrderByTerm`'s `NullsOrder` parameter.
+10. ~~`COUNT(DISTINCT x)`~~ Done, via `Expr::CountDistinct`. `FILTER (WHERE ...)` and named
+    `Coalesce`/`NullIf`/`Greatest`/`Least` remain open.
+11. ~~`ILIKE` / `IS [NOT] DISTINCT FROM`~~ Done, via `Expr::ILike`/`NotILike`/`SimilarTo`/
+    `NotSimilarTo`/`IsDistinctFrom`/`IsNotDistinctFrom`. Regex match (`~`/`!~`) remains open.
 12. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
 
 **P2 — makes the schema-safety promise real**

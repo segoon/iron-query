@@ -10,6 +10,11 @@ namespace iron_query {
 SelectExpr::SelectExpr(const VirtualTable &tbl)
     : from_(tbl.ToStringAsFromItem()) {}
 
+SelectExpr SelectExpr::Distinct() && {
+  distinct_ = true;
+  return std::move(*this);
+}
+
 SelectExpr SelectExpr::Select(SelectItem item) && {
   return std::move(*this).Select({std::move(item)});
 }
@@ -81,7 +86,8 @@ void SelectExpr::EnsureValid() const {
 std::string SelectExpr::ToString() const {
   EnsureValid();
 
-  auto s = "SELECT " + detail::JoinCsv(select_) + " FROM " + from_;
+  std::string s = distinct_ ? "SELECT DISTINCT " : "SELECT ";
+  s += detail::JoinCsv(select_) + " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
   if (!group_by_.empty())
@@ -100,7 +106,8 @@ std::string SelectExpr::ToString() const {
 std::string SelectExpr::ToStringFormatted() const {
   EnsureValid();
 
-  auto s = "SELECT\n" + JoinCsvIndented(select_) + "\nFROM\n    " + from_;
+  auto s = std::string(distinct_ ? "SELECT DISTINCT\n" : "SELECT\n") +
+           JoinCsvIndented(select_) + "\nFROM\n    " + from_;
   if (!where_.empty())
     s += "\nWHERE\n    " + where_;
   if (!group_by_.empty())

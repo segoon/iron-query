@@ -93,6 +93,27 @@ TEST(Select, OrderByDescending) {
             "SELECT * FROM test ORDER BY name, age DESC");
 }
 
+TEST(Select, OrderByNullsFirstLast) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .Select(Expr::FromRaw("*"))
+                .OrderBy({{Expr::FromRaw("name"), SortDirection::kAscending,
+                           NullsOrder::kFirst},
+                          {Expr::FromRaw("age"), SortDirection::kDescending,
+                           NullsOrder::kLast}})
+                .ToString(),
+            "SELECT * FROM test ORDER BY name NULLS FIRST, age DESC NULLS "
+            "LAST");
+}
+
+TEST(Select, Distinct) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl).Distinct().Select(Expr::FromRaw("a")).ToString(),
+            "SELECT DISTINCT a FROM test");
+}
+
 TEST(Select, Full) {
   Table tbl = Table::FromRaw("test");
 
@@ -159,6 +180,16 @@ TEST(SelectFormatted, Basic) {
 
   EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).ToStringFormatted(),
             "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    test");
+}
+
+TEST(SelectFormatted, Distinct) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl).Distinct().Select(Expr::FromRaw("*")).ToStringFormatted(),
+            "SELECT DISTINCT\n"
             "    *\n"
             "FROM\n"
             "    test");
@@ -494,6 +525,18 @@ TEST(Insert, Basic) {
             "INSERT INTO foo (a, b) VALUES (1, 2)");
 }
 
+TEST(Insert, BindParameterValues) {
+  // Values() takes plain Expr, so bind placeholders already work with no
+  // extra API: $N is just an Expr like any other.
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Values({_1, _2})
+                .ToString(),
+            "INSERT INTO foo (a, b) VALUES ($1, $2)");
+}
+
 TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
   Table tbl = Table::FromRaw("foo");
 
@@ -708,6 +751,26 @@ TEST(Expr, NotLike) {
             "a NOT LIKE a%b");
 }
 
+TEST(Expr, ILike) {
+  EXPECT_EQ(Expr::FromRaw("a").ILike(Expr::FromRaw("a%b")).ToString(),
+            "a ILIKE a%b");
+}
+
+TEST(Expr, NotILike) {
+  EXPECT_EQ(Expr::FromRaw("a").NotILike(Expr::FromRaw("a%b")).ToString(),
+            "a NOT ILIKE a%b");
+}
+
+TEST(Expr, SimilarTo) {
+  EXPECT_EQ(Expr::FromRaw("a").SimilarTo(Expr::FromRaw("a%b")).ToString(),
+            "a SIMILAR TO a%b");
+}
+
+TEST(Expr, NotSimilarTo) {
+  EXPECT_EQ(Expr::FromRaw("a").NotSimilarTo(Expr::FromRaw("a%b")).ToString(),
+            "a NOT SIMILAR TO a%b");
+}
+
 TEST(Expr, In) {
   EXPECT_EQ(Expr::FromRaw("a")
                 .In(From(Table::FromRaw("foo")).Select(Expr::FromRaw("bar")))
@@ -758,6 +821,13 @@ TEST(Expr, Is) {
   EXPECT_EQ(Expr::FromRaw("a").IsFalse().ToString(), "a IS FALSE");
   EXPECT_EQ(Expr::FromRaw("a").IsNull().ToString(), "a IS NULL");
   EXPECT_EQ(Expr::FromRaw("a").IsNotNull().ToString(), "a IS NOT NULL");
+}
+
+TEST(Expr, IsDistinctFrom) {
+  EXPECT_EQ(Expr::FromRaw("a").IsDistinctFrom(Expr::FromRaw("b")).ToString(),
+            "a IS DISTINCT FROM b");
+  EXPECT_EQ(Expr::FromRaw("a").IsNotDistinctFrom(Expr::FromRaw("b")).ToString(),
+            "a IS NOT DISTINCT FROM b");
 }
 
 TEST(Condition, LogicalAndEmbedding) {
@@ -896,10 +966,19 @@ TEST(Expr, Aggregates) {
 
   EXPECT_EQ(Expr::Count(age).ToString(), "COUNT(age)");
   EXPECT_EQ(Expr::CountAll().ToString(), "COUNT(*)");
+  EXPECT_EQ(Expr::CountDistinct(age).ToString(), "COUNT(DISTINCT age)");
   EXPECT_EQ(Expr::Sum(age).ToString(), "SUM(age)");
   EXPECT_EQ(Expr::Avg(age).ToString(), "AVG(age)");
   EXPECT_EQ(Expr::Min(age).ToString(), "MIN(age)");
   EXPECT_EQ(Expr::Max(age).ToString(), "MAX(age)");
+}
+
+TEST(Column, ImplicitlyConvertsToExpr) {
+  // Column::operator Expr() must stay non-explicit: a Column has to be
+  // usable wherever a `const Expr &` parameter is expected, with no cast.
+  Column age{"age", "BIGINT"};
+  EXPECT_EQ(Expr::FromRaw("x").Between(age, 30).ToString(),
+            "x BETWEEN age AND 30");
 }
 
 TEST(Expr, LiteralInjectionAttempt) {
