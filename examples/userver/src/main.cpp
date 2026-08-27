@@ -20,6 +20,9 @@
 #include <iron_query/userver.hpp>
 
 namespace samples::iron_query_userver {
+
+namespace iq = iron_query;
+
 namespace {
 
 const iron_query::Table kKeyValueTable =
@@ -71,7 +74,7 @@ private:
                        const server::http::HttpRequest &request) const {
     using namespace iron_query;
 
-    const auto query = userver::ToQuery(
+    const auto query = iq::userver::ToQuery(
         From(kKeyValueTable).Select(kValueColumn).Where(kKeyColumn == _1),
         storages::Query::Name{"iron_query_userver_select_value"});
 
@@ -88,7 +91,7 @@ private:
                         const server::http::HttpRequest &request) const {
     using namespace iron_query;
 
-    const auto query = userver::ToQuery(
+    const auto query = iq::userver::ToQuery(
         InsertInto(kKeyValueTable)
             .Columns({kKeyColumn, kValueColumn})
             .Values({_1, _2}),
@@ -103,7 +106,7 @@ private:
   std::string DeleteValue(std::string_view key) const {
     using namespace iron_query;
 
-    const auto query = userver::ToQuery(
+    const auto query = iq::userver::ToQuery(
         DeleteFrom(kKeyValueTable).Where(kKeyColumn == _1),
         storages::Query::Name{"iron_query_userver_delete_value"});
 
