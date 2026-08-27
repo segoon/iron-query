@@ -92,7 +92,7 @@ Expr Expr::Bool(bool value) {
 
 Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
   detail::ValidateIdentifier(name);
-  std::string s = name + "(";
+  auto s = name + "(";
   bool first = true;
   for (const auto &arg : args) {
     if (!first)

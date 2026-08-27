@@ -32,7 +32,7 @@ Expr CaseBuilder::End() const {
     throw std::logic_error(
         "iron_query: CASE requires at least one When()/Then() pair");
 
-  std::string s = "CASE " + whens_;
+  auto s = "CASE " + whens_;
   if (!else_.empty())
     s += "ELSE " + else_ + " ";
   s += "END";
