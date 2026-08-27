@@ -7,6 +7,15 @@
 
 using namespace iron_query;
 
+namespace {
+// EXPECT_THROW discards the value of the statement it evaluates, which is
+// the whole point of the macro, but that trips -Wunused-result against our
+// [[nodiscard]] builder types. Wrapping the statement in Ignore() marks the
+// discard as intentional at each call site.
+template <typename T>
+void Ignore(T &&) {} // NOLINT(readability-named-parameter)
+} // namespace
+
 TEST(Select, From) {
   Table tbl = Table::FromRaw("test");
 
@@ -383,8 +392,9 @@ TEST(With, UsableAsSubquery) {
 TEST(With, InvalidNameThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_THROW(With("not an identifier", From(tbl).Select(Expr::FromRaw("a"))),
-               std::invalid_argument);
+  EXPECT_THROW(
+      Ignore(With("not an identifier", From(tbl).Select(Expr::FromRaw("a")))),
+      std::invalid_argument);
 }
 
 TEST(With, DottedNameAllowed) {
@@ -431,8 +441,8 @@ TEST_F(AliasTest, JoinIsParenthesized) {
 }
 
 TEST_F(AliasTest, InvalidNameThrows) {
-  EXPECT_THROW(foo.As("not an identifier"), std::invalid_argument);
-  EXPECT_THROW(foo.As(""), std::invalid_argument);
+  EXPECT_THROW(Ignore(foo.As("not an identifier")), std::invalid_argument);
+  EXPECT_THROW(Ignore(foo.As("")), std::invalid_argument);
 }
 
 // A join is a FROM source in its own right; a subquery is one only once it has
@@ -468,10 +478,10 @@ TEST_F(FromSourceTest, AliasedSubquery) {
 
 TEST_F(FromSourceTest, UnaliasedSubqueryThrows) {
   // PostgreSQL: "subquery in FROM must have an alias".
-  EXPECT_THROW(From(From(foo).Select(star)), std::logic_error);
-  EXPECT_THROW(
-      From(SetOp(From(foo).Select(star), From(bar).Select(star), Union())),
-      std::logic_error);
+  EXPECT_THROW(Ignore(From(From(foo).Select(star))), std::logic_error);
+  EXPECT_THROW(Ignore(From(SetOp(From(foo).Select(star), From(bar).Select(star),
+                                 Union()))),
+               std::logic_error);
 }
 
 TEST(Insert, Basic) {
@@ -499,12 +509,12 @@ TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
 TEST(Insert, ArityMismatchThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_THROW(InsertInto(tbl)
-                   .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
-                   .Values({1}),
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                          .Values({1})),
                std::logic_error);
-  EXPECT_THROW(InsertInto(tbl).Values({1}).Columns(
-                   {Expr::FromRaw("a"), Expr::FromRaw("b")}),
+  EXPECT_THROW(Ignore(InsertInto(tbl).Values({1}).Columns(
+                   {Expr::FromRaw("a"), Expr::FromRaw("b")})),
                std::logic_error);
 }
 
@@ -578,10 +588,10 @@ TEST(Select, ColumnAlias) {
 TEST(Select, AliasInvalidNameThrows) {
   Column age{"age", "BIGINT"};
 
-  EXPECT_THROW(age.As("not an identifier"), std::invalid_argument);
-  EXPECT_THROW(age.As(""), std::invalid_argument);
+  EXPECT_THROW(Ignore(age.As("not an identifier")), std::invalid_argument);
+  EXPECT_THROW(Ignore(age.As("")), std::invalid_argument);
   // A column alias, unlike a CTE or table name, cannot be qualified.
-  EXPECT_THROW(age.As("a.b"), std::invalid_argument);
+  EXPECT_THROW(Ignore(age.As("a.b")), std::invalid_argument);
 }
 
 TEST(Column, Compare) {
@@ -613,8 +623,9 @@ TEST(TableAlias, Dot) {
 }
 
 TEST(TableAlias, InvalidNameThrows) {
-  EXPECT_THROW(TableAlias::From("not an identifier"), std::invalid_argument);
-  EXPECT_THROW(TableAlias::From(""), std::invalid_argument);
+  EXPECT_THROW(Ignore(TableAlias::From("not an identifier")),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(TableAlias::From("")), std::invalid_argument);
 }
 
 TEST(Expr, symbol) {
@@ -719,8 +730,8 @@ TEST(Expr, InValueList) {
 
 TEST(Expr, InEmptyListThrows) {
   // "a IN ()" is not valid SQL, so an empty list can only be a caller bug.
-  EXPECT_THROW(Expr::FromRaw("a").In({}), std::invalid_argument);
-  EXPECT_THROW(Expr::FromRaw("a").NotIn({}), std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").In({})), std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").NotIn({})), std::invalid_argument);
 }
 
 TEST(Expr, EqAnyNeAll) {
@@ -837,8 +848,9 @@ TEST(Expr, Call) {
 }
 
 TEST(Expr, CallInvalidNameThrows) {
-  EXPECT_THROW(Expr::Call("not an identifier", {}), std::invalid_argument);
-  EXPECT_THROW(Expr::Call("", {}), std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::Call("not an identifier", {})),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::Call("", {})), std::invalid_argument);
 }
 
 TEST(Expr, Case) {
@@ -863,11 +875,11 @@ TEST(Expr, CaseMultiWhenElse) {
 }
 
 TEST(Expr, CaseThenWithoutWhenThrows) {
-  EXPECT_THROW(Case().Then(Expr::FromRaw("x")), std::logic_error);
+  EXPECT_THROW(Ignore(Case().Then(Expr::FromRaw("x"))), std::logic_error);
 }
 
 TEST(Expr, CaseEndWithoutWhenThrows) {
-  EXPECT_THROW(Case().End(), std::logic_error);
+  EXPECT_THROW(Ignore(Case().End()), std::logic_error);
 }
 
 TEST(Expr, Exists) {
