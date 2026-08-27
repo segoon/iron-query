@@ -97,6 +97,25 @@ public:
   /// function's actual signature.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
+  /// @brief COALESCE(args...): the first non-NULL argument.
+  /// @throws std::invalid_argument if `args` is empty.
+  static Expr Coalesce(std::initializer_list<Expr> args);
+
+  /// @brief NULLIF(a, b): NULL if `a` equals `b`, else `a`.
+  static Expr NullIf(const Expr &a, const Expr &b);
+
+  /// @brief GREATEST(args...).
+  /// @throws std::invalid_argument if `args` is empty.
+  /// @note Unlike @ref Max, this is not an aggregate: it picks the greatest
+  /// among its arguments, not among rows.
+  static Expr Greatest(std::initializer_list<Expr> args);
+
+  /// @brief LEAST(args...).
+  /// @throws std::invalid_argument if `args` is empty.
+  /// @note Unlike @ref Min, this is not an aggregate: it picks the least
+  /// among its arguments, not among rows.
+  static Expr Least(std::initializer_list<Expr> args);
+
   /// @brief EXISTS (subquery).
   static Condition Exists(const VirtualTable &subquery);
 

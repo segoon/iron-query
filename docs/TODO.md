@@ -1,2 +1,3 @@
 - example with raw libpq (?)
 - pretty formatting with CTEs
+- generate doxygen make target

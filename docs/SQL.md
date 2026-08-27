@@ -25,7 +25,9 @@ whole point of the product (see `docs/VISION.md`).
 | Statement | Notes |
 |---|---|
 | `SELECT` | `SelectExpr`: select list (with `AS` aliases), `FROM` (single item), `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY` (with `ASC`/`DESC`), `LIMIT`, `OFFSET` |
-| `INSERT INTO ... VALUES (...)` | `InsertInto`: single row, explicit column list |
+| `INSERT INTO ... VALUES (...)` | `InsertInto`: explicit column list, single row via `Values()` or multiple rows via `Rows()` |
+| `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | `InsertInto`/`Update`/`DeleteFrom::Returning()` |
+| `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | `InsertInto::OnConflictDoNothing`/`OnConflictDoUpdate` |
 | `UPDATE ... SET ... WHERE` | `Update` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
 | `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
@@ -41,9 +43,6 @@ whole point of the product (see `docs/VISION.md`).
 | Statement / clause | Rarity | Notes |
 |---|---|---|
 | `DISTINCT ON` | 5 | No API; plain `DISTINCT` is covered by `SelectExpr::Distinct()`. |
-| Multi-row `INSERT ... VALUES (a),(b)` | 8 | `Values()` can only be called for one row (second call appends into the same tuple). |
-| `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | 8 | PG-specific but ubiquitous there. |
-| `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | 8 | |
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
@@ -93,6 +92,7 @@ whole point of the product (see `docs/VISION.md`).
 | `COLLATE` | `Expr::Collate` + `Collation` |
 | Function call | `Expr::Call(name, {args})`, name validated as an identifier |
 | Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max` |
+| `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | `Expr::Coalesce`/`NullIf`/`Greatest`/`Least` |
 | `CASE WHEN ... THEN ... ELSE ... END` | `Case()...When().Then().Else().End()` (searched form) |
 
 ### Unsupported
@@ -105,7 +105,6 @@ whole point of the product (see `docs/VISION.md`).
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
 | Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`. |
 | More aggregates: `string_agg`, `array_agg`, `json_agg`, `bool_and/or` | 5 | `Expr::Call` covers them, but arg-count/typo safety is lost for none — this is arguably fine. |
-| `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | 6 | Reachable via `Expr::Call`; deserve named helpers since they're keywords, not functions. |
 | Simple `CASE expr WHEN v THEN ...` form | 4 | Only the searched form exists. |
 | `x::type` shorthand and a typed (non-raw) type vocabulary | 5 | `CastRaw` is the only cast, and it's a raw hole. |
 | Array constructors / operators (`ARRAY[...]`, `@>`, `&&`, `ANY`) | 4 | |
@@ -200,9 +199,9 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P1 — routine work that currently needs `FromRaw`**
 
-2. Multi-row `INSERT`, `INSERT ... SELECT`, `RETURNING`, `ON CONFLICT`.
+2. `INSERT INTO ... SELECT`.
 3. `Limit`/`Offset` taking an `Expr` so bind parameters work.
-4. `FILTER (WHERE ...)`; named `Coalesce`/`NullIf`/`Greatest`/`Least`.
+4. `FILTER (WHERE ...)`.
 5. Regex match (`~`/`!~`).
 6. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
 

@@ -102,6 +102,37 @@ Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
   return Expr(std::move(s), OperatorPrecedence::kSymbol);
 }
 
+namespace {
+
+// COALESCE/GREATEST/LEAST render like ordinary function calls, but SQL
+// requires at least one argument, unlike a real function call.
+void EnsureNonEmptyArgs(std::initializer_list<Expr> args, const char *name) {
+  if (args.size() == 0)
+    throw std::invalid_argument(std::string("iron_query: ") + name +
+                                "() needs at least one argument");
+}
+
+} // namespace
+
+Expr Expr::Coalesce(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "COALESCE");
+  return Call("COALESCE", args);
+}
+
+Expr Expr::NullIf(const Expr &a, const Expr &b) {
+  return Call("NULLIF", {a, b});
+}
+
+Expr Expr::Greatest(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "GREATEST");
+  return Call("GREATEST", args);
+}
+
+Expr Expr::Least(std::initializer_list<Expr> args) {
+  EnsureNonEmptyArgs(args, "LEAST");
+  return Call("LEAST", args);
+}
+
 Condition Expr::Exists(const VirtualTable &subquery) {
   return Condition("EXISTS " + subquery.ToStringBracketed(),
                    OperatorPrecedence::kSymbol);

@@ -295,6 +295,18 @@ TEST(Delete, Where) {
             "DELETE FROM test WHERE a = 1");
 }
 
+TEST(Delete, Returning) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(DeleteFrom(tbl).Returning(Expr::FromRaw("id")).ToString(),
+            "DELETE FROM test RETURNING id");
+  EXPECT_EQ(DeleteFrom(tbl)
+                .Where(Condition::FromRaw("a = 1"))
+                .Returning({Expr::FromRaw("id"), Expr::FromRaw("name")})
+                .ToString(),
+            "DELETE FROM test WHERE a = 1 RETURNING id, name");
+}
+
 TEST(Join, Inner) {
   Table tbl1 = Table::FromRaw("foo");
   Table tbl2 = Table::FromRaw("bar");
@@ -537,6 +549,106 @@ TEST(Insert, BindParameterValues) {
             "INSERT INTO foo (a, b) VALUES ($1, $2)");
 }
 
+TEST(Insert, MultiRowValues) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Rows({{1, 2}, {3, 4}})
+                .ToString(),
+            "INSERT INTO foo (a, b) VALUES (1, 2), (3, 4)");
+}
+
+TEST(Insert, MultiRowValuesSingleColumn) {
+  // A single-column row, {{v}}, would be ambiguous as an overload of
+  // Values() (it can also list-initialize a lone Expr); Rows() sidesteps
+  // that entirely.
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(
+      InsertInto(tbl).Columns({Expr::FromRaw("a")}).Rows({{1}, {2}}).ToString(),
+      "INSERT INTO foo (a) VALUES (1), (2)");
+}
+
+TEST(Insert, RowsReplacesPreviousRows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Rows({{1}, {2}})
+                .Rows({{3}})
+                .ToString(),
+            "INSERT INTO foo (a) VALUES (3)");
+}
+
+TEST(Insert, RowsArityMismatchThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                          .Rows({{1, 2}, {3}})),
+               std::logic_error);
+}
+
+TEST(Insert, Returning) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Values({1})
+                .Returning(Expr::FromRaw("id"))
+                .ToString(),
+            "INSERT INTO foo (a) VALUES (1) RETURNING id");
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Values({1})
+                .Returning({Expr::FromRaw("id"), Expr::FromRaw("a")})
+                .ToString(),
+            "INSERT INTO foo (a) VALUES (1) RETURNING id, a");
+}
+
+TEST(Insert, OnConflictDoNothing) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Values({1})
+                .OnConflictDoNothing()
+                .ToString(),
+            "INSERT INTO foo (a) VALUES (1) ON CONFLICT DO NOTHING");
+  EXPECT_EQ(InsertInto(tbl)
+                .Columns({Expr::FromRaw("a")})
+                .Values({1})
+                .OnConflictDoNothing({Expr::FromRaw("a")})
+                .ToString(),
+            "INSERT INTO foo (a) VALUES (1) ON CONFLICT (a) DO NOTHING");
+}
+
+TEST(Insert, OnConflictDoUpdate) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(
+      InsertInto(tbl)
+          .Columns({Expr::FromRaw("id"), Expr::FromRaw("count")})
+          .Values({1, 1})
+          .OnConflictDoUpdate(
+              {Expr::FromRaw("id")},
+              {{Expr::FromRaw("count"), Expr::FromRaw("EXCLUDED.count")}})
+          .ToString(),
+      "INSERT INTO foo (id, count) VALUES (1, 1) ON CONFLICT (id) DO UPDATE "
+      "SET count = EXCLUDED.count");
+}
+
+TEST(Insert, OnConflictDoUpdateEmptyAssignmentsThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Values({1})
+                          .OnConflictDoUpdate({Expr::FromRaw("a")}, {})),
+               std::invalid_argument);
+}
+
 TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
   Table tbl = Table::FromRaw("foo");
 
@@ -596,6 +708,21 @@ TEST(Update, MissingSetThrows) {
   Table tbl = Table::FromRaw("foo");
   EXPECT_THROW(Update(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
                std::logic_error);
+}
+
+TEST(Update, Returning) {
+  Table tbl = Table::FromRaw("foo");
+  Column age{"age", "BIGINT"};
+
+  EXPECT_EQ(Update(tbl).Set(age, 42).Returning(Expr::FromRaw("id")).ToString(),
+            "UPDATE foo SET age = 42 RETURNING id");
+  EXPECT_EQ(Update(tbl)
+                .Set(age, 42)
+                .Where(age == 1)
+                .Returning({Expr::FromRaw("id"), age.As("old_age")})
+                .ToString(),
+            "UPDATE foo SET age = 42 WHERE age = 1 RETURNING id, age AS "
+            "old_age");
 }
 
 TEST(Column, Select) {
@@ -971,6 +1098,39 @@ TEST(Expr, Aggregates) {
   EXPECT_EQ(Expr::Avg(age).ToString(), "AVG(age)");
   EXPECT_EQ(Expr::Min(age).ToString(), "MIN(age)");
   EXPECT_EQ(Expr::Max(age).ToString(), "MAX(age)");
+}
+
+TEST(Expr, Coalesce) {
+  EXPECT_EQ(Expr::Coalesce({Expr::FromRaw("a"), Expr::Null(), 0}).ToString(),
+            "COALESCE(a, NULL, 0)");
+}
+
+TEST(Expr, CoalesceEmptyThrows) {
+  EXPECT_THROW(Ignore(Expr::Coalesce({})), std::invalid_argument);
+}
+
+TEST(Expr, NullIf) {
+  EXPECT_EQ(Expr::NullIf(Expr::FromRaw("a"), Expr::FromRaw("b")).ToString(),
+            "NULLIF(a, b)");
+}
+
+TEST(Expr, Greatest) {
+  EXPECT_EQ(
+      Expr::Greatest({Expr::FromRaw("a"), Expr::FromRaw("b"), 0}).ToString(),
+      "GREATEST(a, b, 0)");
+}
+
+TEST(Expr, GreatestEmptyThrows) {
+  EXPECT_THROW(Ignore(Expr::Greatest({})), std::invalid_argument);
+}
+
+TEST(Expr, Least) {
+  EXPECT_EQ(Expr::Least({Expr::FromRaw("a"), Expr::FromRaw("b"), 0}).ToString(),
+            "LEAST(a, b, 0)");
+}
+
+TEST(Expr, LeastEmptyThrows) {
+  EXPECT_THROW(Ignore(Expr::Least({})), std::invalid_argument);
 }
 
 TEST(Column, ImplicitlyConvertsToExpr) {
