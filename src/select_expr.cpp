@@ -20,9 +20,7 @@ SelectExpr SelectExpr::DistinctOn(Expr exp) && {
 }
 
 SelectExpr SelectExpr::DistinctOn(std::initializer_list<Expr> exps) && {
-  if (!distinct_on_.empty())
-    throw std::logic_error("iron_query: DISTINCT ON clause is already set");
-  distinct_on_ = impl::RenderAll(exps);
+  impl::SetOnce(distinct_on_, "DISTINCT ON clause", impl::RenderAll(exps));
   return std::move(*this);
 }
 
@@ -31,16 +29,12 @@ SelectExpr SelectExpr::Select(SelectItem item) && {
 }
 
 SelectExpr SelectExpr::Select(std::initializer_list<SelectItem> items) && {
-  if (!select_.empty())
-    throw std::logic_error("iron_query: SELECT clause is already set");
-  select_ = impl::RenderAll(items);
+  impl::SetOnce(select_, "SELECT clause", impl::RenderAll(items));
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Where(Condition exp) && {
-  if (!where_.empty())
-    throw std::logic_error("iron_query: WHERE clause is already set");
-  where_ = exp.ToString();
+  impl::SetOnce(where_, "WHERE clause", exp.ToString());
   return std::move(*this);
 }
 
@@ -49,9 +43,7 @@ SelectExpr SelectExpr::OrderBy(OrderByTerm term) && {
 }
 
 SelectExpr SelectExpr::OrderBy(std::initializer_list<OrderByTerm> terms) && {
-  if (!order_by_.empty())
-    throw std::logic_error("iron_query: ORDER BY clause is already set");
-  order_by_ = impl::RenderAll(terms);
+  impl::SetOnce(order_by_, "ORDER BY clause", impl::RenderAll(terms));
   return std::move(*this);
 }
 
@@ -60,30 +52,22 @@ SelectExpr SelectExpr::GroupBy(Expr exp) && {
 }
 
 SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
-  if (!group_by_.empty())
-    throw std::logic_error("iron_query: GROUP BY clause is already set");
-  group_by_ = impl::RenderAll(exps);
+  impl::SetOnce(group_by_, "GROUP BY clause", impl::RenderAll(exps));
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Having(Condition exp) && {
-  if (!having_.empty())
-    throw std::logic_error("iron_query: HAVING clause is already set");
-  having_ = exp.ToString();
+  impl::SetOnce(having_, "HAVING clause", exp.ToString());
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Limit(int limit) && {
-  if (!limit_.empty())
-    throw std::logic_error("iron_query: LIMIT clause is already set");
-  limit_ = std::to_string(limit);
+  impl::SetOnce(limit_, "LIMIT clause", std::to_string(limit));
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Offset(int offset) && {
-  if (!offset_.empty())
-    throw std::logic_error("iron_query: OFFSET clause is already set");
-  offset_ = std::to_string(offset);
+  impl::SetOnce(offset_, "OFFSET clause", std::to_string(offset));
   return std::move(*this);
 }
 

@@ -1,3 +1,4 @@
+#include "impl/render.hpp"
 #include <iron_query/join.hpp>
 #include <stdexcept>
 #include <string>
@@ -32,9 +33,7 @@ Join::Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind)
 Join Join::On(Condition exp) && {
   if (natural_)
     throw std::logic_error("iron_query: NATURAL JOIN cannot have an ON clause");
-  if (!on_.empty())
-    throw std::logic_error("iron_query: ON clause is already set");
-  on_ = exp.ToString();
+  impl::SetOnce(on_, "ON clause", exp.ToString());
   return std::move(*this);
 }
 

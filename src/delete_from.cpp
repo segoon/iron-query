@@ -8,16 +8,12 @@ namespace iron_query {
 DeleteFrom::DeleteFrom(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
 
 DeleteFrom DeleteFrom::Using(const VirtualTable &tbl) && {
-  if (!using_.empty())
-    throw std::logic_error("iron_query: USING clause is already set");
-  using_ = tbl.ToStringAsFromItem();
+  impl::SetOnce(using_, "USING clause", tbl.ToStringAsFromItem());
   return std::move(*this);
 }
 
 DeleteFrom DeleteFrom::Where(Condition exp) && {
-  if (!where_.empty())
-    throw std::logic_error("iron_query: WHERE clause is already set");
-  where_ = exp.ToString();
+  impl::SetOnce(where_, "WHERE clause", exp.ToString());
   return std::move(*this);
 }
 
@@ -26,9 +22,8 @@ DeleteFrom DeleteFrom::Returning(SelectItem item) && {
 }
 
 DeleteFrom DeleteFrom::Returning(std::initializer_list<SelectItem> items) && {
-  if (!returning_.empty())
-    throw std::logic_error("iron_query: RETURNING clause is already set");
-  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  impl::SetOnce(returning_, "RETURNING clause",
+                impl::JoinCsv(impl::RenderAll(items)));
   return std::move(*this);
 }
 

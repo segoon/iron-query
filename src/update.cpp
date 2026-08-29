@@ -15,16 +15,12 @@ Update Update::Set(const Expr &column, const Expr &value) && {
 }
 
 Update Update::From(const VirtualTable &tbl) && {
-  if (!from_.empty())
-    throw std::logic_error("iron_query: FROM clause is already set");
-  from_ = tbl.ToStringAsFromItem();
+  impl::SetOnce(from_, "FROM clause", tbl.ToStringAsFromItem());
   return std::move(*this);
 }
 
 Update Update::Where(Condition exp) && {
-  if (!where_.empty())
-    throw std::logic_error("iron_query: WHERE clause is already set");
-  where_ = exp.ToString();
+  impl::SetOnce(where_, "WHERE clause", exp.ToString());
   return std::move(*this);
 }
 
@@ -33,9 +29,8 @@ Update Update::Returning(SelectItem item) && {
 }
 
 Update Update::Returning(std::initializer_list<SelectItem> items) && {
-  if (!returning_.empty())
-    throw std::logic_error("iron_query: RETURNING clause is already set");
-  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  impl::SetOnce(returning_, "RETURNING clause",
+                impl::JoinCsv(impl::RenderAll(items)));
   return std::move(*this);
 }
 
