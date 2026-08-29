@@ -5,6 +5,12 @@ Note: this is NOT an ORM!
 
 Licensed under the [Apache License 2.0](LICENSE).
 
+# Do I need IronQuery?
+
+Answer the following questions:
+1) Are your queries structure defined in runtime (e.g. optional `LIMIT`/`WHERE` or dynamic `WHERE` clause)?
+2) Do you want to keep yourself distant from SQL?
+3) Is the query performance critical?
 
 # Architectual decisions
 
