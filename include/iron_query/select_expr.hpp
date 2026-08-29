@@ -21,6 +21,17 @@ public:
   /// @brief Adds `DISTINCT` to the SELECT list, eliminating duplicate rows.
   SelectExpr Distinct() &&;
 
+  /// @brief Sets DISTINCT ON to a single expression, replacing any
+  /// previously set list. Mutually exclusive with @ref Distinct.
+  SelectExpr DistinctOn(Expr exp) &&;
+
+  /// @brief Sets DISTINCT ON to a comma-separated list of expressions,
+  /// replacing any previously set list. Mutually exclusive with @ref
+  /// Distinct.
+  /// @note Does not check that the leftmost `ORDER BY` expressions match
+  /// these, which PostgreSQL requires.
+  SelectExpr DistinctOn(std::initializer_list<Expr> exps) &&;
+
   /// @brief Sets the SELECT list to a single entry, replacing any previously
   /// set list.
   SelectExpr Select(SelectItem item) &&;
@@ -60,7 +71,8 @@ public:
   /// @brief Sets the OFFSET clause.
   SelectExpr Offset(int offset) &&;
 
-  /// @throws std::logic_error if the SELECT or FROM clause was not set.
+  /// @throws std::logic_error if the SELECT or FROM clause was not set, or
+  /// if both @ref Distinct and @ref DistinctOn were set.
   std::string ToString() const override;
 
   /// @brief Renders the query with each clause on its own line, indented,
@@ -81,6 +93,7 @@ private:
   void EnsureValid() const;
 
   bool distinct_{false};
+  std::vector<std::string> distinct_on_;
   std::string from_;
   std::vector<std::string> select_;
   std::string where_;

@@ -15,6 +15,15 @@ SelectExpr SelectExpr::Distinct() && {
   return std::move(*this);
 }
 
+SelectExpr SelectExpr::DistinctOn(Expr exp) && {
+  return std::move(*this).DistinctOn({std::move(exp)});
+}
+
+SelectExpr SelectExpr::DistinctOn(std::initializer_list<Expr> exps) && {
+  distinct_on_ = impl::RenderAll(exps);
+  return std::move(*this);
+}
+
 SelectExpr SelectExpr::Select(SelectItem item) && {
   return std::move(*this).Select({std::move(item)});
 }
@@ -81,12 +90,19 @@ void SelectExpr::EnsureValid() const {
     throw std::logic_error("iron_query: SELECT clause is not set");
   if (from_.empty())
     throw std::logic_error("iron_query: FROM clause is not set");
+  if (distinct_ && !distinct_on_.empty())
+    throw std::logic_error(
+        "iron_query: DISTINCT and DISTINCT ON are mutually exclusive");
 }
 
 std::string SelectExpr::ToString() const {
   EnsureValid();
 
-  std::string s = distinct_ ? "SELECT DISTINCT " : "SELECT ";
+  std::string s;
+  if (!distinct_on_.empty())
+    s = "SELECT DISTINCT ON (" + impl::JoinCsv(distinct_on_) + ") ";
+  else
+    s = distinct_ ? "SELECT DISTINCT " : "SELECT ";
   s += impl::JoinCsv(select_) + " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
@@ -106,8 +122,12 @@ std::string SelectExpr::ToString() const {
 std::string SelectExpr::ToStringFormatted() const {
   EnsureValid();
 
-  auto s = std::string(distinct_ ? "SELECT DISTINCT\n" : "SELECT\n") +
-           JoinCsvIndented(select_) + "\nFROM\n    " + from_;
+  std::string header;
+  if (!distinct_on_.empty())
+    header = "SELECT DISTINCT ON (" + impl::JoinCsv(distinct_on_) + ")\n";
+  else
+    header = distinct_ ? "SELECT DISTINCT\n" : "SELECT\n";
+  auto s = header + JoinCsvIndented(select_) + "\nFROM\n    " + from_;
   if (!where_.empty())
     s += "\nWHERE\n    " + where_;
   if (!group_by_.empty())

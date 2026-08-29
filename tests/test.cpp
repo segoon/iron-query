@@ -114,6 +114,55 @@ TEST(Select, Distinct) {
             "SELECT DISTINCT a FROM test");
 }
 
+TEST(Select, DistinctOn) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn(Expr::FromRaw("a"))
+                .Select(Expr::FromRaw("*"))
+                .ToString(),
+            "SELECT DISTINCT ON (a) * FROM test");
+}
+
+TEST(Select, DistinctOnMulti) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Select(Expr::FromRaw("*"))
+                .ToString(),
+            "SELECT DISTINCT ON (a, b) * FROM test");
+}
+
+TEST(Select, DistinctOnWithOrderBy) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn(Expr::FromRaw("a"))
+                .Select(Expr::FromRaw("*"))
+                .OrderBy({Expr::FromRaw("a"), Expr::FromRaw("created_at desc")})
+                .ToString(),
+            "SELECT DISTINCT ON (a) * FROM test "
+            "ORDER BY a, created_at desc");
+}
+
+TEST(Select, DistinctAndDistinctOnThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(From(tbl)
+                   .Distinct()
+                   .DistinctOn(Expr::FromRaw("a"))
+                   .Select(Expr::FromRaw("*"))
+                   .ToString(),
+               std::logic_error);
+  EXPECT_THROW(From(tbl)
+                   .DistinctOn(Expr::FromRaw("a"))
+                   .Distinct()
+                   .Select(Expr::FromRaw("*"))
+                   .ToString(),
+               std::logic_error);
+}
+
 TEST(Select, Full) {
   Table tbl = Table::FromRaw("test");
 
@@ -190,6 +239,19 @@ TEST(SelectFormatted, Distinct) {
 
   EXPECT_EQ(From(tbl).Distinct().Select(Expr::FromRaw("*")).ToStringFormatted(),
             "SELECT DISTINCT\n"
+            "    *\n"
+            "FROM\n"
+            "    test");
+}
+
+TEST(SelectFormatted, DistinctOn) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Select(Expr::FromRaw("*"))
+                .ToStringFormatted(),
+            "SELECT DISTINCT ON (a, b)\n"
             "    *\n"
             "FROM\n"
             "    test");
@@ -704,6 +766,51 @@ TEST(Update, MultiSet) {
             "UPDATE foo SET a = 1, b = 2");
 }
 
+TEST(Update, From) {
+  Table tbl = Table::FromRaw("foo");
+  Table other = Table::FromRaw("bar");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("age"), Expr::FromRaw("bar.age"))
+                .From(other)
+                .Where(Condition::FromRaw("foo.id = bar.id"))
+                .ToString(),
+            "UPDATE foo SET age = bar.age FROM bar WHERE foo.id = bar.id");
+}
+
+TEST(Update, FromJoin) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("x"), 1)
+                .From(Join(a, b, Inner()).On(Condition::FromRaw("a.id = b.id")))
+                .ToString(),
+            "UPDATE foo SET x = 1 FROM a INNER JOIN b ON a.id = b.id");
+}
+
+TEST(Update, FromAliasedSubquery) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("x"), 1)
+                .From(From(bar).Select(Expr::FromRaw("*")).As("s"))
+                .ToString(),
+            "UPDATE foo SET x = 1 FROM (SELECT * FROM bar) AS s");
+}
+
+TEST(Update, FromUnaliasedSubqueryThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(Expr::FromRaw("x"), 1)
+                          .From(From(bar).Select(Expr::FromRaw("*")))),
+               std::logic_error);
+}
+
 TEST(Update, MissingSetThrows) {
   Table tbl = Table::FromRaw("foo");
   EXPECT_THROW(Update(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
@@ -748,7 +855,7 @@ TEST(Select, ColumnAlias) {
   Column age{"age", "BIGINT"};
 
   EXPECT_EQ(From(tbl)
-                .Select({age.As("years"), (Expr(age) + 1).As("next_year")})
+                .Select({age.As("years"), (age.ToExpr() + 1).As("next_year")})
                 .ToString(),
             "SELECT age AS years, age + 1 AS next_year FROM foo");
   EXPECT_EQ(From(tbl).Select(Expr::CountAll().As("n")).ToString(),
@@ -773,6 +880,14 @@ TEST(Column, Compare) {
   EXPECT_EQ((age >= 18).ToString(), "age >= 18");
   EXPECT_EQ((age == 18).ToString(), "age = 18");
   EXPECT_EQ((age != 18).ToString(), "age != 18");
+}
+
+TEST(Column, ToExpr) {
+  Column age{"age", "BIGINT"};
+
+  EXPECT_EQ(age.ToExpr().IsNull().ToString(), "age IS NULL");
+  EXPECT_EQ(age.ToExpr().Between(0, 18).ToString(), "age BETWEEN 0 AND 18");
+  EXPECT_EQ((age.ToExpr() + 1).ToString(), "age + 1");
 }
 
 TEST(TableWithColumns, Simple) {

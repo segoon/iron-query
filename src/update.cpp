@@ -14,6 +14,11 @@ Update Update::Set(const Expr &column, const Expr &value) && {
   return std::move(*this);
 }
 
+Update Update::From(const VirtualTable &tbl) && {
+  from_ = tbl.ToStringAsFromItem();
+  return std::move(*this);
+}
+
 Update Update::Where(Condition exp) && {
   where_ = exp.ToString();
   return std::move(*this);
@@ -33,6 +38,8 @@ std::string Update::ToString() const {
     throw std::logic_error("iron_query: SET clause is not set");
 
   auto s = "UPDATE " + table_ + " SET " + set_;
+  if (!from_.empty())
+    s += " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
   if (!returning_.empty())

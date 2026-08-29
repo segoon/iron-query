@@ -29,12 +29,14 @@ whole point of the product (see `docs/VISION.md`).
 | `INSERT ... RETURNING` / `UPDATE`/`DELETE ... RETURNING` | `InsertInto`/`Update`/`DeleteFrom::Returning()` |
 | `INSERT ... ON CONFLICT DO NOTHING/UPDATE` (upsert) | `InsertInto::OnConflictDoNothing`/`OnConflictDoUpdate` |
 | `UPDATE ... SET ... WHERE` | `Update` |
+| `UPDATE ... FROM` | `Update::From`, taking a table, join, or aliased subquery like `SelectExpr`'s `From` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
 | `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
 | `WITH ... AS (...)` | `With(...)...Main(...)`, N non-recursive CTEs |
 | Subqueries | `VirtualTable::operator Expr` (scalar subquery), `Expr::Exists`/`NotExists`, CTE bodies |
 | `SELECT DISTINCT` | `SelectExpr::Distinct()` |
+| `SELECT DISTINCT ON (...)` | `SelectExpr::DistinctOn()`, mutually exclusive with `Distinct()` |
 | `ORDER BY ... NULLS FIRST/LAST` | `OrderByTerm`'s third constructor argument, `NullsOrder` |
 | `INSERT` with a bind-parameter value | `Values()` already takes `Expr`, and `_1..._10` are `Expr`, so `Values({_1, _2})` renders `VALUES ($1, $2)` with no extra API |
 
@@ -42,11 +44,10 @@ whole point of the product (see `docs/VISION.md`).
 
 | Statement / clause | Rarity | Notes |
 |---|---|---|
-| `DISTINCT ON` | 5 | No API; plain `DISTINCT` is covered by `SelectExpr::Distinct()`. |
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
-| `UPDATE ... FROM`, `DELETE ... USING` | 6 | |
+| `DELETE ... USING` | 6 | |
 | `JOIN ... USING (cols)` / `NATURAL JOIN` | 5 | Only `ON`. |
 | `ORDER BY`/`LIMIT` applied to a `UNION` result | 5 | `SetOp` has no clauses of its own. |
 | `WITH RECURSIVE` | 4 | |
@@ -123,7 +124,10 @@ whole point of the product (see `docs/VISION.md`).
 
 ### Supported
 
-- `Column{name, type, is_nullable}` with comparison operators and implicit `Expr` conversion.
+- `Column{name, type, is_nullable}` with comparison operators, implicit `Expr`
+  conversion, and an explicit `Column::ToExpr()` for reaching the rest of
+  `Expr`'s API (`IsNull`, `Like`, `In`, `Between`, arithmetic, ...) without
+  growing `Column`'s own overload set.
 - `TableWithColumns` + `SelectArgAll()` — the "no lost field after migration" story.
 - `TableAlias::From()` with identifier validation; `TableAlias::Dot` returns a
   ready-to-use, correctly-precedenced `Expr` (`alias.column`), so no
@@ -141,7 +145,6 @@ whole point of the product (see `docs/VISION.md`).
 
 | Feature | Rarity | Notes |
 |---|---|---|
-| `Column` has no `IsNull`/`Like`/`In`/`Between`/arithmetic | 8 | Only the six comparisons and `As` are duplicated onto `Column`; everything else needs an explicit `Expr(col)`. Duplication that should be solved by one conversion path, not by more overloads. |
 | `is_nullable` is stored and never used | 7 | Could reject `col == NULL`, or warn on `!=` against a nullable column. |
 | `Column.type` is stored and never used | 6 | Could power a typed `Cast`, or reject `text_col + int_col`. |
 | No `TableWithColumns` → alias binding | 8 | Nothing ties an alias to a column set, so `alias.Dot(col)` can't verify `col` belongs to the table. |
@@ -152,51 +155,9 @@ whole point of the product (see `docs/VISION.md`).
 
 ---
 
-## 4. Defects found while auditing — all fixed
-
-Five behavioural defects turned up during this audit; all are fixed, each with a
-regression test. Recorded here because two of them shaped the priorities in §5.
-
-1. **`SelectExpr::Select(initializer_list)` appended instead of replacing.** Two calls
-   silently concatenated. `OrderBy`/`GroupBy` assigned in both overloads, so it was a
-   slip, not a design. Fixed by giving each comma-separated clause a single assignment
-   site (`RenderAll` in `src/impl/render.hpp`), with the one-term overloads delegating
-   to the many-term ones — the two can no longer disagree.
-2. **`VirtualTable::As` wrapped the alias inside the parentheses**, emitting
-   `(foo AS bar)`, `((SELECT …) AS s)` and `((a JOIN b) AS j)`. PostgreSQL's
-   `table_ref` attaches the alias directly to the item and permits parentheses in
-   exactly one case, `'(' joined_table ')' alias_clause`, so the first two were
-   unparseable. Dropping the outer parens fixes all three, because `ToStringBracketed()`
-   already brackets per type. `As()` now also validates its alias as an identifier,
-   closing an unmarked raw-SQL hole.
-3. **`Expr::operator[]` was tagged `kSymbol` instead of `kIndex`**, unlike every
-   sibling operator. Harmless in output, but it made `a[b].c` render unbracketed.
-4. **`InsertInto` did not check column/value arity** — `(a, b) VALUES (1)` built fine
-   and failed at the server, exactly the typo class the product exists to prevent.
-   Both setters now replace rather than accumulate, and cross-check counts eagerly.
-5. **Member initialisation order disagreed with declaration order** in `Expr` and
-   `Condition`. Fixed, and `-Wall -Wextra -Werror` is now on both build targets — which
-   promptly surfaced **two more instances of the same defect, in `Join` and `SetOp`**,
-   that the audit's manual read had missed. That is the argument for the flag.
-
-**Caveat:** no PostgreSQL or `libpg_query` is available in this environment, so the
-corrected strings were checked against the grammar by reading it, not by parsing them.
-
----
-
 ## 5. Proposed TODO, in priority order
 
 Ordered by (rarity × how badly the gap forces users back into raw strings).
-
-**P0 — the library is hard to use without these**
-
-1. **Validate generated SQL against a real parser.** Every test is still a string
-   comparison. Feeding each expected string through `postgres --check`/`libpg_query`/an
-   ephemeral PG container in CI would turn the whole suite into a syntax oracle — the
-   cheapest possible guard for a library whose entire value proposition is "your SQL
-   parses". Everything added so far is grammar-checked by hand, not by a parser (see the
-   §4 caveat). Deferred out of the P0 batch as CI/infrastructure work rather than API
-   work.
 
 **P1 — routine work that currently needs `FromRaw`**
 

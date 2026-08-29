@@ -5,6 +5,7 @@
 #include <iron_query/expr.hpp>
 #include <iron_query/select_item.hpp>
 #include <iron_query/table.hpp>
+#include <iron_query/virtual_table.hpp>
 #include <string>
 
 namespace iron_query {
@@ -19,6 +20,12 @@ public:
   /// @note Does not check that `column` names an actual column of `tbl`,
   /// nor that `value`'s type matches that column's declared type.
   Update Set(const Expr &column, const Expr &value) &&;
+
+  /// @brief Sets the FROM clause, so SET/WHERE expressions may reference
+  /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
+  /// VirtualTable::As has aliased.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias.
+  Update From(const VirtualTable &tbl) &&;
 
   /// @brief Sets the WHERE clause.
   Update Where(Condition exp) &&;
@@ -37,6 +44,7 @@ public:
 private:
   std::string table_;
   std::string set_;
+  std::string from_;
   std::string where_;
   std::string returning_;
 };
