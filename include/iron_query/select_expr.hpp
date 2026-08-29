@@ -21,23 +21,24 @@ public:
   /// @brief Adds `DISTINCT` to the SELECT list, eliminating duplicate rows.
   SelectExpr Distinct() &&;
 
-  /// @brief Sets DISTINCT ON to a single expression, replacing any
-  /// previously set list. Mutually exclusive with @ref Distinct.
+  /// @brief Sets DISTINCT ON to a single expression. Mutually exclusive with
+  /// @ref Distinct.
+  /// @throws std::logic_error if DISTINCT ON was already set.
   SelectExpr DistinctOn(Expr exp) &&;
 
-  /// @brief Sets DISTINCT ON to a comma-separated list of expressions,
-  /// replacing any previously set list. Mutually exclusive with @ref
-  /// Distinct.
+  /// @brief Sets DISTINCT ON to a comma-separated list of expressions.
+  /// Mutually exclusive with @ref Distinct.
   /// @note Does not check that the leftmost `ORDER BY` expressions match
   /// these, which PostgreSQL requires.
+  /// @throws std::logic_error if DISTINCT ON was already set.
   SelectExpr DistinctOn(std::initializer_list<Expr> exps) &&;
 
-  /// @brief Sets the SELECT list to a single entry, replacing any previously
-  /// set list.
+  /// @brief Sets the SELECT list to a single entry.
+  /// @throws std::logic_error if the SELECT list was already set.
   SelectExpr Select(SelectItem item) &&;
 
-  /// @brief Sets the SELECT list to a comma-separated list of entries,
-  /// replacing any previously set list.
+  /// @brief Sets the SELECT list to a comma-separated list of entries.
+  /// @throws std::logic_error if the SELECT list was already set.
   SelectExpr Select(std::initializer_list<SelectItem> items) &&;
 
   /// @brief Sets the WHERE clause.
@@ -45,20 +46,24 @@ public:
   SelectExpr Where(Condition exp) &&;
 
   /// @brief Sets the ORDER BY clause to a single term.
+  /// @throws std::logic_error if the ORDER BY clause was already set.
   SelectExpr OrderBy(OrderByTerm term) &&;
 
   /// @brief Sets the ORDER BY clause to a comma-separated list of terms.
+  /// @throws std::logic_error if the ORDER BY clause was already set.
   SelectExpr OrderBy(std::initializer_list<OrderByTerm> terms) &&;
 
   /// @brief Sets the GROUP BY clause to a single expression.
   /// @note Does not check that non-aggregated @ref Select items are covered
   /// by the GROUP BY expressions.
+  /// @throws std::logic_error if the GROUP BY clause was already set.
   SelectExpr GroupBy(Expr exp) &&;
 
   /// @brief Sets the GROUP BY clause to a comma-separated list of
   /// expressions.
   /// @note Does not check that non-aggregated @ref Select items are covered
   /// by the GROUP BY expressions.
+  /// @throws std::logic_error if the GROUP BY clause was already set.
   SelectExpr GroupBy(std::initializer_list<Expr> exps) &&;
 
   /// @brief Sets the HAVING clause.

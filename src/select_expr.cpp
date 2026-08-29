@@ -20,6 +20,8 @@ SelectExpr SelectExpr::DistinctOn(Expr exp) && {
 }
 
 SelectExpr SelectExpr::DistinctOn(std::initializer_list<Expr> exps) && {
+  if (!distinct_on_.empty())
+    throw std::logic_error("iron_query: DISTINCT ON clause is already set");
   distinct_on_ = impl::RenderAll(exps);
   return std::move(*this);
 }
@@ -29,6 +31,8 @@ SelectExpr SelectExpr::Select(SelectItem item) && {
 }
 
 SelectExpr SelectExpr::Select(std::initializer_list<SelectItem> items) && {
+  if (!select_.empty())
+    throw std::logic_error("iron_query: SELECT clause is already set");
   select_ = impl::RenderAll(items);
   return std::move(*this);
 }
@@ -45,6 +49,8 @@ SelectExpr SelectExpr::OrderBy(OrderByTerm term) && {
 }
 
 SelectExpr SelectExpr::OrderBy(std::initializer_list<OrderByTerm> terms) && {
+  if (!order_by_.empty())
+    throw std::logic_error("iron_query: ORDER BY clause is already set");
   order_by_ = impl::RenderAll(terms);
   return std::move(*this);
 }
@@ -54,6 +60,8 @@ SelectExpr SelectExpr::GroupBy(Expr exp) && {
 }
 
 SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
+  if (!group_by_.empty())
+    throw std::logic_error("iron_query: GROUP BY clause is already set");
   group_by_ = impl::RenderAll(exps);
   return std::move(*this);
 }

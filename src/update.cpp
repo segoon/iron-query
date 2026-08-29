@@ -33,6 +33,8 @@ Update Update::Returning(SelectItem item) && {
 }
 
 Update Update::Returning(std::initializer_list<SelectItem> items) && {
+  if (!returning_.empty())
+    throw std::logic_error("iron_query: RETURNING clause is already set");
   returning_ = impl::JoinCsv(impl::RenderAll(items));
   return std::move(*this);
 }

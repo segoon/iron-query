@@ -38,18 +38,42 @@ TEST(Select, Multi) {
       "SELECT a, b FROM test");
 }
 
-TEST(Select, ClauseListsReplacePreviousLists) {
+TEST(Select, SelectAlreadySetThrows) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl)
-                .Select({Expr::FromRaw("a")})
-                .Select({Expr::FromRaw("b")})
-                .GroupBy({Expr::FromRaw("a")})
-                .GroupBy({Expr::FromRaw("b")})
-                .OrderBy({Expr::FromRaw("a")})
-                .OrderBy({Expr::FromRaw("b")})
-                .ToString(),
-            "SELECT b FROM test GROUP BY b ORDER BY b");
+  EXPECT_THROW(
+      Ignore(
+          From(tbl).Select({Expr::FromRaw("a")}).Select({Expr::FromRaw("b")})),
+      std::logic_error);
+}
+
+TEST(Select, GroupByAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select({Expr::FromRaw("a")})
+                          .GroupBy({Expr::FromRaw("a")})
+                          .GroupBy({Expr::FromRaw("b")})),
+               std::logic_error);
+}
+
+TEST(Select, OrderByAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select({Expr::FromRaw("a")})
+                          .OrderBy({Expr::FromRaw("a")})
+                          .OrderBy({Expr::FromRaw("b")})),
+               std::logic_error);
+}
+
+TEST(Select, DistinctOnAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .DistinctOn(Expr::FromRaw("a"))
+                          .DistinctOn(Expr::FromRaw("b"))),
+               std::logic_error);
 }
 
 TEST(Select, Where) {
@@ -462,6 +486,15 @@ TEST(Delete, Returning) {
             "DELETE FROM test WHERE a = 1 RETURNING id, name");
 }
 
+TEST(Delete, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl)
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("name"))),
+               std::logic_error);
+}
+
 TEST(Join, Inner) {
   Table tbl1 = Table::FromRaw("foo");
   Table tbl2 = Table::FromRaw("bar");
@@ -776,15 +809,24 @@ TEST(Insert, MultiRowValuesSingleColumn) {
       "INSERT INTO foo (a) VALUES (1), (2)");
 }
 
-TEST(Insert, RowsReplacesPreviousRows) {
+TEST(Insert, RowsAlreadySetThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(InsertInto(tbl)
-                .Columns({Expr::FromRaw("a")})
-                .Rows({{1}, {2}})
-                .Rows({{3}})
-                .ToString(),
-            "INSERT INTO foo (a) VALUES (3)");
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Rows({{1}, {2}})
+                          .Rows({{3}})),
+               std::logic_error);
+}
+
+TEST(Insert, ValuesAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Values({1})
+                          .Values({2})),
+               std::logic_error);
 }
 
 TEST(Insert, RowsArityMismatchThrows) {
@@ -811,6 +853,17 @@ TEST(Insert, Returning) {
                 .Returning({Expr::FromRaw("id"), Expr::FromRaw("a")})
                 .ToString(),
             "INSERT INTO foo (a) VALUES (1) RETURNING id, a");
+}
+
+TEST(Insert, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Values({1})
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("a"))),
+               std::logic_error);
 }
 
 TEST(Insert, OnConflictDoNothing) {
@@ -855,16 +908,13 @@ TEST(Insert, OnConflictDoUpdateEmptyAssignmentsThrows) {
                std::invalid_argument);
 }
 
-TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
+TEST(Insert, ColumnsAlreadySetThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(InsertInto(tbl)
-                .Columns({Expr::FromRaw("a")})
-                .Columns({Expr::FromRaw("b")})
-                .Values({1})
-                .Values({2})
-                .ToString(),
-            "INSERT INTO foo (b) VALUES (2)");
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Columns({Expr::FromRaw("b")})),
+               std::logic_error);
 }
 
 TEST(Insert, ArityMismatchThrows) {
@@ -993,6 +1043,17 @@ TEST(Update, Returning) {
                 .ToString(),
             "UPDATE foo SET age = 42 WHERE age = 1 RETURNING id, age AS "
             "old_age");
+}
+
+TEST(Update, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Column age{"age", "BIGINT"};
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(age, 42)
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("age"))),
+               std::logic_error);
 }
 
 TEST(Column, Select) {

@@ -16,27 +16,27 @@ public:
   /// @brief Starts an `INSERT INTO tbl` query.
   InsertInto(const Table &tbl);
 
-  /// @brief Sets the list of columns to insert into, replacing any previously
-  /// set list.
-  /// @throws std::logic_error if the count does not match an already-set
-  /// @ref Values row's arity.
+  /// @brief Sets the list of columns to insert into.
+  /// @throws std::logic_error if the column list was already set, or if the
+  /// count does not match an already-set @ref Values row's arity.
   /// @note Only the count is checked; `cols` are not checked to actually
   /// name columns of `tbl`.
   InsertInto Columns(std::initializer_list<Expr> cols) &&;
 
   /// @brief Sets a single row of values to insert, matching @ref Columns by
-  /// position and replacing any previously set rows.
-  /// @throws std::logic_error if the count does not match an already-set
-  /// @ref Columns list.
+  /// position.
+  /// @throws std::logic_error if row values were already set (via this or
+  /// @ref Rows), or if the count does not match an already-set @ref Columns
+  /// list.
   /// @note Only the count is checked; each value's SQL type is not checked
   /// against the corresponding column's declared type.
   InsertInto Values(std::initializer_list<Expr> vals) &&;
 
   /// @brief Sets multiple rows of values to insert, e.g. `Rows({{1, 2},
-  /// {3, 4}})` for `VALUES (1, 2), (3, 4)`, replacing any previously set
-  /// rows.
-  /// @throws std::logic_error if any row's arity does not match an
-  /// already-set @ref Columns list.
+  /// {3, 4}})` for `VALUES (1, 2), (3, 4)`.
+  /// @throws std::logic_error if row values were already set (via this or
+  /// @ref Values), or if any row's arity does not match an already-set
+  /// @ref Columns list.
   /// @note Only each row's count is checked, not that every row has the
   /// same arity as every other row, nor value types against columns.
   /// @note Not an overload of @ref Values: for a single-column table,
@@ -45,12 +45,12 @@ public:
   /// ambiguous.
   InsertInto Rows(std::initializer_list<std::initializer_list<Expr>> rows) &&;
 
-  /// @brief Sets the RETURNING clause to a single entry, replacing any
-  /// previously set one.
+  /// @brief Sets the RETURNING clause to a single entry.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   InsertInto Returning(SelectItem item) &&;
 
-  /// @brief Sets the RETURNING clause to a comma-separated list of entries,
-  /// replacing any previously set one.
+  /// @brief Sets the RETURNING clause to a comma-separated list of entries.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   InsertInto Returning(std::initializer_list<SelectItem> items) &&;
 
   /// @brief `ON CONFLICT DO NOTHING`, matching any conflict.

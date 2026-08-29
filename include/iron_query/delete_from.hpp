@@ -26,12 +26,12 @@ public:
   /// @throws std::logic_error if the WHERE clause was already set.
   DeleteFrom Where(Condition exp) &&;
 
-  /// @brief Sets the RETURNING clause to a single entry, replacing any
-  /// previously set one.
+  /// @brief Sets the RETURNING clause to a single entry.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   DeleteFrom Returning(SelectItem item) &&;
 
-  /// @brief Sets the RETURNING clause to a comma-separated list of entries,
-  /// replacing any previously set one.
+  /// @brief Sets the RETURNING clause to a comma-separated list of entries.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   DeleteFrom Returning(std::initializer_list<SelectItem> items) &&;
 
   /// @throws std::logic_error if the FROM clause was not set.

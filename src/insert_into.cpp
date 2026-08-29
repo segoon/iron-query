@@ -28,12 +28,16 @@ void EnsureSameArity(const std::vector<std::string> &columns,
 } // namespace
 
 InsertInto InsertInto::Columns(std::initializer_list<Expr> cols) && {
+  if (!columns_.empty())
+    throw std::logic_error("iron_query: column list is already set");
   columns_ = impl::RenderAll(cols);
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
 
 InsertInto InsertInto::Values(std::initializer_list<Expr> vals) && {
+  if (!rows_.empty())
+    throw std::logic_error("iron_query: row values are already set");
   rows_ = {impl::RenderAll(vals)};
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
@@ -41,7 +45,8 @@ InsertInto InsertInto::Values(std::initializer_list<Expr> vals) && {
 
 InsertInto
 InsertInto::Rows(std::initializer_list<std::initializer_list<Expr>> rows) && {
-  rows_.clear();
+  if (!rows_.empty())
+    throw std::logic_error("iron_query: row values are already set");
   rows_.reserve(rows.size());
   for (const auto &row : rows)
     rows_.push_back(impl::RenderAll(row));
@@ -54,6 +59,8 @@ InsertInto InsertInto::Returning(SelectItem item) && {
 }
 
 InsertInto InsertInto::Returning(std::initializer_list<SelectItem> items) && {
+  if (!returning_.empty())
+    throw std::logic_error("iron_query: RETURNING clause is already set");
   returning_ = impl::JoinCsv(impl::RenderAll(items));
   return std::move(*this);
 }
