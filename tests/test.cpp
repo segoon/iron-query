@@ -417,6 +417,47 @@ TEST(Join, FullOuter) {
             "foo FULL OUTER JOIN bar");
 }
 
+TEST(Join, NaturalInner) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalInner()).ToString(),
+            "foo NATURAL INNER JOIN bar");
+}
+
+TEST(Join, NaturalLeftOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalLeftOuter()).ToString(),
+            "foo NATURAL LEFT OUTER JOIN bar");
+}
+
+TEST(Join, NaturalRightOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalRightOuter()).ToString(),
+            "foo NATURAL RIGHT OUTER JOIN bar");
+}
+
+TEST(Join, NaturalFullOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalFullOuter()).ToString(),
+            "foo NATURAL FULL OUTER JOIN bar");
+}
+
+TEST(Join, NaturalWithOnThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, NaturalInner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))),
+               std::logic_error);
+}
+
 TEST(SetOp, Union) {
   Table tbl = Table::FromRaw("foo");
 
