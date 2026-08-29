@@ -15,6 +15,12 @@ public:
   /// @brief Starts a `DELETE FROM tbl` query.
   DeleteFrom(const Table &tbl);
 
+  /// @brief Sets the USING clause, so WHERE expressions may reference
+  /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
+  /// VirtualTable::As has aliased.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias.
+  DeleteFrom Using(const VirtualTable &tbl) &&;
+
   /// @brief Sets the WHERE clause.
   DeleteFrom Where(Condition exp) &&;
 
@@ -31,6 +37,7 @@ public:
 
 private:
   std::string from_;
+  std::string using_;
   std::string where_;
   std::string returning_;
 };

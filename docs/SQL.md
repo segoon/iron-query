@@ -31,6 +31,7 @@ whole point of the product (see `docs/VISION.md`).
 | `UPDATE ... SET ... WHERE` | `Update` |
 | `UPDATE ... FROM` | `Update::From`, taking a table, join, or aliased subquery like `SelectExpr`'s `From` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
+| `DELETE ... USING` | `DeleteFrom::Using`, taking a table, join, or aliased subquery like `SelectExpr`'s `From` |
 | `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
 | `NATURAL JOIN` | `Join` + `NaturalInner`/`NaturalLeftOuter`/`NaturalRightOuter`/`NaturalFullOuter` (no `ON`; no `NaturalCross`, matching PostgreSQL's grammar) |
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
@@ -48,7 +49,6 @@ whole point of the product (see `docs/VISION.md`).
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
-| `DELETE ... USING` | 6 | |
 | `JOIN ... USING (cols)` | 5 | Only `ON`. |
 | `ORDER BY`/`LIMIT` applied to a `UNION` result | 5 | `SetOp` has no clauses of its own. |
 | `WITH RECURSIVE` | 4 | |

@@ -350,6 +350,48 @@ TEST(Delete, From) {
   EXPECT_EQ(DeleteFrom(tbl).ToString(), "DELETE FROM test");
 }
 
+TEST(Delete, Using) {
+  Table tbl = Table::FromRaw("foo");
+  Table other = Table::FromRaw("bar");
+
+  EXPECT_EQ(DeleteFrom(tbl)
+                .Using(other)
+                .Where(Condition::FromRaw("foo.id = bar.id"))
+                .ToString(),
+            "DELETE FROM foo USING bar WHERE foo.id = bar.id");
+}
+
+TEST(Delete, UsingJoin) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_EQ(
+      DeleteFrom(tbl)
+          .Using(Join(a, b, Inner()).On(Condition::FromRaw("a.id = b.id")))
+          .ToString(),
+      "DELETE FROM foo USING a INNER JOIN b ON a.id = b.id");
+}
+
+TEST(Delete, UsingAliasedSubquery) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_EQ(DeleteFrom(tbl)
+                .Using(From(bar).Select(Expr::FromRaw("*")).As("s"))
+                .ToString(),
+            "DELETE FROM foo USING (SELECT * FROM bar) AS s");
+}
+
+TEST(Delete, UsingUnaliasedSubqueryThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_THROW(
+      Ignore(DeleteFrom(tbl).Using(From(bar).Select(Expr::FromRaw("*")))),
+      std::logic_error);
+}
+
 TEST(Delete, Where) {
   Table tbl = Table::FromRaw("test");
 

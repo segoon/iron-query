@@ -11,3 +11,4 @@ The core risk is to make error with manual SQL typing:
 - missing escaping of string values
 - non-existing table field
 - lost field after migration
+- erroneous expressions with a branch duplication like DELETE ... USING ... USING ...
