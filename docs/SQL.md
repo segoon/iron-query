@@ -93,7 +93,8 @@ whole point of the product (see `docs/VISION.md`).
 | `CAST(x AS t)` | `Expr::CastRaw` (type is raw) |
 | `COLLATE` | `Expr::Collate` + `Collation` |
 | Function call | `Expr::Call(name, {args})`, name validated as an identifier |
-| Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max` |
+| Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max`; any other aggregate via `Expr::Call`/`Expr::CallDistinct(name, {args})` |
+| Arbitrary infix/prefix operator, e.g. regex `~`/`!~`, JSON `->`/`->>`/`#>`/`@>`, bitwise `& \| # << >>`, array `&&`/`@>` | `Expr::BinaryOp(op, other)`/`Expr::PrefixOp(op, operand)`, `op` validated as an operator-shaped token (not checked against a real operator catalog); prefer the named operator methods below when the operator is one of them |
 | `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | `Expr::Coalesce`/`NullIf`/`Greatest`/`Least` |
 | `CASE WHEN ... THEN ... ELSE ... END` | `Case()...When().Then().Else().End()` (searched form) |
 | String concatenation `\|\|` | `Expr::Concat` (named rather than `operator\|\|`, which is `Condition`'s logical OR) |
@@ -104,16 +105,12 @@ whole point of the product (see `docs/VISION.md`).
 
 | Feature | Rarity | Notes |
 |---|---|---|
-| `~` / `!~` regex | 6 | PG-specific, common in search filters. |
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
-| Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`. |
-| More aggregates: `string_agg`, `array_agg`, `json_agg`, `bool_and/or` | 5 | `Expr::Call` covers them, but arg-count/typo safety is lost for none — this is arguably fine. |
+| Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`, any other aggregate's `DISTINCT` by `Expr::CallDistinct`. |
 | Simple `CASE expr WHEN v THEN ...` form | 4 | Only the searched form exists. |
 | `x::type` shorthand and a typed (non-raw) type vocabulary | 5 | `CastRaw` is the only cast, and it's a raw hole. |
-| Array constructors / operators (`ARRAY[...]`, `@>`, `&&`, `ANY`) | 4 | |
+| Array constructors (`ARRAY[...]`) | 4 | Array *operators* (`@>`, `&&`, `ANY`) are reachable via `Expr::BinaryOp`. |
 | Row constructors, `(a,b) IN (...)`, `IS NULL` on rows | 3 | |
-| JSON/JSONB operators (`->`, `->>`, `#>`, `@>`) | 5 | Common in PG apps; all require `FromRaw` today. |
-| Bitwise `& \| # << >>` | 3 | |
 | `LIKE ... ESCAPE` | 2 | |
 | `EXTRACT(field FROM x)`, `INTERVAL '...'`, date/time literals | 5 | |
 | `AT TIME ZONE` | 3 | `kAt` precedence exists but no operator uses it. |
@@ -173,7 +170,6 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 2. `INSERT INTO ... SELECT`.
 3. `Limit`/`Offset` taking an `Expr` so bind parameters work.
 4. `FILTER (WHERE ...)`.
-5. Regex match (`~`/`!~`).
 
 **P2 — makes the schema-safety promise real**
 

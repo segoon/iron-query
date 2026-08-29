@@ -15,8 +15,6 @@ Expr TableAlias::Dot(const std::string &column) const {
   return Expr::FromRaw(alias_ + "." + column, OperatorPrecedence::kDot);
 }
 
-Expr TableAlias::Dot(const Column &column) const {
-  return Dot(column.name);
-}
+Expr TableAlias::Dot(const Column &column) const { return Dot(column.name); }
 
 } // namespace iron_query

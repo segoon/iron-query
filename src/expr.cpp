@@ -88,20 +88,6 @@ Expr Expr::Bool(bool value) {
   return Expr(value ? "TRUE" : "FALSE", OperatorPrecedence::kSymbol);
 }
 
-Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
-  impl::ValidateIdentifier(name);
-  auto s = name + "(";
-  bool first = true;
-  for (const auto &arg : args) {
-    if (!first)
-      s += ", ";
-    s += arg.ToString();
-    first = false;
-  }
-  s += ")";
-  return Expr(std::move(s), OperatorPrecedence::kSymbol);
-}
-
 namespace {
 
 // COALESCE/GREATEST/LEAST render like ordinary function calls, but SQL
@@ -112,7 +98,33 @@ void EnsureNonEmptyArgs(std::initializer_list<Expr> args, const char *name) {
                                 "() needs at least one argument");
 }
 
+std::string RenderCall(const std::string &name, const char *args_prefix,
+                       std::initializer_list<Expr> args) {
+  auto s = name + "(" + args_prefix;
+  bool first = true;
+  for (const auto &arg : args) {
+    if (!first)
+      s += ", ";
+    s += arg.ToString();
+    first = false;
+  }
+  s += ")";
+  return s;
+}
+
 } // namespace
+
+Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
+  impl::ValidateIdentifier(name);
+  return Expr(RenderCall(name, "", args), OperatorPrecedence::kSymbol);
+}
+
+Expr Expr::CallDistinct(const std::string &name,
+                        std::initializer_list<Expr> args) {
+  impl::ValidateIdentifier(name);
+  EnsureNonEmptyArgs(args, name.c_str());
+  return Expr(RenderCall(name, "DISTINCT ", args), OperatorPrecedence::kSymbol);
+}
 
 Expr Expr::Coalesce(std::initializer_list<Expr> args) {
   EnsureNonEmptyArgs(args, "COALESCE");
@@ -143,12 +155,18 @@ Condition Expr::NotExists(const VirtualTable &subquery) {
                    OperatorPrecedence::kSymbol);
 }
 
+Expr Expr::PrefixOp(const std::string &op, const Expr &operand,
+                    OperatorPrecedence precedence) {
+  impl::ValidateOperatorName(op);
+  return Expr(op + " " + operand.Extract(precedence), precedence);
+}
+
 Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
 
 Expr Expr::CountAll() { return Expr(std::string("COUNT(*)")); }
 
 Expr Expr::CountDistinct(const Expr &arg) {
-  return Expr("COUNT(DISTINCT " + arg.ToString() + ")");
+  return CallDistinct("COUNT", {arg});
 }
 
 Expr Expr::Sum(const Expr &arg) { return Call("SUM", {arg}); }
@@ -187,6 +205,13 @@ Expr Expr::operator^(const Expr &other) const {
   return Expr(Extract(OperatorPrecedence::kExp) + " ^ " +
                   other.Extract(OperatorPrecedence::kExp),
               OperatorPrecedence::kExp);
+}
+
+Expr Expr::BinaryOp(const std::string &op, const Expr &other,
+                    OperatorPrecedence precedence) const {
+  impl::ValidateOperatorName(op);
+  return Expr(Extract(precedence) + " " + op + " " + other.Extract(precedence),
+              precedence);
 }
 
 Condition Expr::Between(const Expr &a, const Expr &b) const {

@@ -1427,6 +1427,67 @@ TEST(Expr, CallInvalidNameThrows) {
   EXPECT_THROW(Ignore(Expr::Call("", {})), std::invalid_argument);
 }
 
+TEST(Expr, CallDistinct) {
+  EXPECT_EQ(
+      Expr::CallDistinct("string_agg", {Expr::FromRaw("x"), Expr::Literal(",")})
+          .ToString(),
+      "string_agg(DISTINCT x, ',')");
+}
+
+TEST(Expr, CallDistinctInvalidThrows) {
+  EXPECT_THROW(Ignore(Expr::CallDistinct("not an identifier", {Expr(1)})),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::CallDistinct("string_agg", {})),
+               std::invalid_argument);
+}
+
+TEST(Expr, BinaryOp) {
+  EXPECT_EQ(Expr::FromRaw("a").BinaryOp("~", Expr::Literal("^x")).ToString(),
+            "a ~ '^x'");
+  EXPECT_EQ(Expr::FromRaw("a").BinaryOp("@>", Expr::FromRaw("b")).ToString(),
+            "a @> b");
+  // kAnyOther default precedence binds looser than kAnd, so an AND operand
+  // gets parenthesized.
+  EXPECT_EQ((Expr::FromRaw("a") == 1)
+                .operator Expr()
+                .BinaryOp("&&", Expr::FromRaw("b"))
+                .ToString(),
+            "(a = 1) && b");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .BinaryOp("<<", Expr::FromRaw("b"), OperatorPrecedence::kExp)
+                .Dot(Expr::FromRaw("c"))
+                .ToString(),
+            "(a << b).c");
+}
+
+TEST(Expr, BinaryOpInvalidNameThrows) {
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("x", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("--", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("/*", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("++", Expr::FromRaw("b"))),
+               std::invalid_argument);
+}
+
+TEST(Expr, PrefixOp) {
+  EXPECT_EQ(Expr::PrefixOp("@", Expr::FromRaw("x")).ToString(), "@ x");
+  EXPECT_EQ(Expr::PrefixOp("~", Expr::FromRaw("x"))
+                .Dot(Expr::FromRaw("y"))
+                .ToString(),
+            "(~ x).y");
+}
+
+TEST(Expr, PrefixOpInvalidNameThrows) {
+  EXPECT_THROW(Ignore(Expr::PrefixOp("", Expr::FromRaw("x"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::PrefixOp("x", Expr::FromRaw("x"))),
+               std::invalid_argument);
+}
+
 TEST(Expr, Case) {
   EXPECT_EQ(Case()
                 .When(Expr::FromRaw("a") == 1)
