@@ -999,6 +999,30 @@ TEST(Expr, Not) {
   EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
 }
 
+TEST(Expr, UnaryMinus) {
+  EXPECT_EQ((-Expr::FromRaw("a")).ToString(), "-a");
+  EXPECT_EQ((-(Expr::FromRaw("a") + 1)).ToString(), "-(a + 1)");
+}
+
+TEST(Expr, UnaryMinusDouble) {
+  EXPECT_EQ((-(-Expr::FromRaw("a"))).ToString(), "-(-a)");
+}
+
+TEST(Expr, UnaryNot) {
+  EXPECT_EQ((!Expr::FromRaw("is_admin")).ToString(), "NOT is_admin");
+}
+
+TEST(Expr, Concat) {
+  EXPECT_EQ(Expr::FromRaw("a").Concat(Expr::FromRaw("b")).ToString(), "a || b");
+  EXPECT_EQ((Expr::FromRaw("a") + 1).Concat(Expr::FromRaw("b")).ToString(),
+            "a + 1 || b");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .Concat(Expr::FromRaw("b"))
+                .Dot(Expr::FromRaw("c"))
+                .ToString(),
+            "(a || b).c");
+}
+
 TEST(Expr, Dot) {
   EXPECT_EQ(Expr::FromRaw("foo").Dot(Expr::FromRaw("bar")).ToString(),
             "foo.bar");

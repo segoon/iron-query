@@ -289,6 +289,21 @@ public:
   /// @brief `this % other`.
   Expr operator%(const Expr &other) const;
 
+  /// @brief Unary minus: `-this`.
+  Expr operator-() const;
+
+  /// @brief Value-level negation: `NOT this`. Distinct from
+  /// `Condition::operator!`, which negates a predicate; this negates a
+  /// boolean-typed Expr while staying an Expr (e.g. for use in a SELECT
+  /// list: `(!is_admin).As("not_admin")`).
+  /// @note Does not check that `this` is boolean-typed.
+  Expr operator!() const;
+
+  /// @brief String concatenation: `this || other`. Named rather than
+  /// `operator||` because that operator is already `Condition`'s logical OR.
+  /// @note Does not check that `this` and `other` are text-typed.
+  Expr Concat(const Expr &other) const;
+
   /// @brief Names this expression in a SELECT list: `this AS name`. `name`
   /// must be a plain (undotted) SQL identifier.
   /// @throws std::invalid_argument if `name` is not a valid identifier.

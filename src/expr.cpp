@@ -402,6 +402,22 @@ Expr Expr::operator%(const Expr &other) const {
               OperatorPrecedence::kMul);
 }
 
+Expr Expr::operator-() const {
+  return Expr("-" + Extract(OperatorPrecedence::kUnaryPlus),
+              OperatorPrecedence::kUnaryPlus);
+}
+
+Expr Expr::operator!() const {
+  return Expr("NOT " + Extract(OperatorPrecedence::kNot),
+              OperatorPrecedence::kNot);
+}
+
+Expr Expr::Concat(const Expr &other) const {
+  return Expr(Extract(OperatorPrecedence::kAnyOther) + " || " +
+                  other.Extract(OperatorPrecedence::kAnyOther),
+              OperatorPrecedence::kAnyOther);
+}
+
 SelectItem Expr::As(std::string_view name) const {
   // Not impl::ValidateIdentifier(): a column alias cannot be dot-qualified.
   if (!impl::IsPlainIdentifier(name))

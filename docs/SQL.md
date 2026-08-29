@@ -96,13 +96,14 @@ whole point of the product (see `docs/VISION.md`).
 | Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max` |
 | `COALESCE` / `NULLIF` / `GREATEST` / `LEAST` | `Expr::Coalesce`/`NullIf`/`Greatest`/`Least` |
 | `CASE WHEN ... THEN ... ELSE ... END` | `Case()...When().Then().Else().End()` (searched form) |
+| String concatenation `\|\|` | `Expr::Concat` (named rather than `operator\|\|`, which is `Condition`'s logical OR) |
+| Unary minus | `Expr::operator-` |
+| Unary `NOT` on `Expr` | `Expr::operator!`, distinct from `Condition::operator!` |
 
 ### Unsupported
 
 | Feature | Rarity | Notes |
 |---|---|---|
-| String concatenation `\|\|` | 8 | Collides with `operator\|\|` on `Condition`; needs a named `Concat`. |
-| Unary minus, unary `NOT` on `Expr` | 8 | `-x` has no API. |
 | `~` / `!~` regex | 6 | PG-specific, common in search filters. |
 | Window functions (`OVER (PARTITION BY ... ORDER BY ...)`) | 6 | `row_number()`, `rank()`, running totals. |
 | Aggregate modifiers: `FILTER (WHERE ...)`, `ORDER BY` inside aggregates | 5 | `COUNT(DISTINCT x)` is covered by `Expr::CountDistinct`. |
@@ -166,7 +167,6 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 3. `Limit`/`Offset` taking an `Expr` so bind parameters work.
 4. `FILTER (WHERE ...)`.
 5. Regex match (`~`/`!~`).
-6. Unary minus and string concatenation (`Expr::Concat`, since `||` is taken).
 
 **P2 — makes the schema-safety promise real**
 
