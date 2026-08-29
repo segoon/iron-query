@@ -18,10 +18,12 @@ public:
   /// @brief Sets the USING clause, so WHERE expressions may reference
   /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
   /// VirtualTable::As has aliased.
-  /// @throws std::logic_error if `tbl` is a subquery without an alias.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// the USING clause was already set.
   DeleteFrom Using(const VirtualTable &tbl) &&;
 
   /// @brief Sets the WHERE clause.
+  /// @throws std::logic_error if the WHERE clause was already set.
   DeleteFrom Where(Condition exp) &&;
 
   /// @brief Sets the RETURNING clause to a single entry, replacing any

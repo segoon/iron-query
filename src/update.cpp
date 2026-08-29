@@ -15,11 +15,15 @@ Update Update::Set(const Expr &column, const Expr &value) && {
 }
 
 Update Update::From(const VirtualTable &tbl) && {
+  if (!from_.empty())
+    throw std::logic_error("iron_query: FROM clause is already set");
   from_ = tbl.ToStringAsFromItem();
   return std::move(*this);
 }
 
 Update Update::Where(Condition exp) && {
+  if (!where_.empty())
+    throw std::logic_error("iron_query: WHERE clause is already set");
   where_ = exp.ToString();
   return std::move(*this);
 }

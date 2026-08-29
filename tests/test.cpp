@@ -62,6 +62,15 @@ TEST(Select, Where) {
             "SELECT * FROM test WHERE a = b");
 }
 
+TEST(Select, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Where(Condition::FromRaw("a = b"))
+                          .Where(Condition::FromRaw("c = d"))),
+               std::logic_error);
+}
+
 TEST(Select, OrderBy) {
   Table tbl = Table::FromRaw("test");
 
@@ -185,6 +194,16 @@ TEST(Select, GroupByHaving) {
             "SELECT a, COUNT(*) FROM test GROUP BY a HAVING COUNT(*) > 1");
 }
 
+TEST(Select, HavingAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select(Expr::FromRaw("*"))
+                          .Having(Expr::FromRaw("COUNT(*)") > 1)
+                          .Having(Expr::FromRaw("COUNT(*)") > 2)),
+               std::logic_error);
+}
+
 TEST(Select, GroupByMulti) {
   Table tbl = Table::FromRaw("test");
 
@@ -200,6 +219,21 @@ TEST(Select, LimitOffset) {
 
   EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).Limit(10).Offset(5).ToString(),
             "SELECT * FROM test LIMIT 10 OFFSET 5");
+}
+
+TEST(Select, LimitAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl).Select(Expr::FromRaw("*")).Limit(10).Limit(20)),
+               std::logic_error);
+}
+
+TEST(Select, OffsetAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(
+      Ignore(From(tbl).Select(Expr::FromRaw("*")).Offset(5).Offset(10)),
+      std::logic_error);
 }
 
 TEST(Select, AllClauses) {
@@ -392,11 +426,28 @@ TEST(Delete, UsingUnaliasedSubqueryThrows) {
       std::logic_error);
 }
 
+TEST(Delete, UsingAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl).Using(a).Using(b)), std::logic_error);
+}
+
 TEST(Delete, Where) {
   Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(DeleteFrom(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
             "DELETE FROM test WHERE a = 1");
+}
+
+TEST(Delete, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl)
+                          .Where(Condition::FromRaw("a = 1"))
+                          .Where(Condition::FromRaw("b = 2"))),
+               std::logic_error);
 }
 
 TEST(Delete, Returning) {
@@ -497,6 +548,16 @@ TEST(Join, NaturalWithOnThrows) {
 
   EXPECT_THROW(Ignore(Join(tbl1, tbl2, NaturalInner())
                           .On(Condition::FromRaw("foo.a = bar.a"))),
+               std::logic_error);
+}
+
+TEST(Join, OnAlreadySetThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))
+                          .On(Condition::FromRaw("foo.b = bar.b"))),
                std::logic_error);
 }
 
@@ -891,6 +952,25 @@ TEST(Update, FromUnaliasedSubqueryThrows) {
   EXPECT_THROW(Ignore(Update(tbl)
                           .Set(Expr::FromRaw("x"), 1)
                           .From(From(bar).Select(Expr::FromRaw("*")))),
+               std::logic_error);
+}
+
+TEST(Update, FromAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_THROW(Ignore(Update(tbl).Set(Expr::FromRaw("x"), 1).From(a).From(b)),
+               std::logic_error);
+}
+
+TEST(Update, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(Expr::FromRaw("x"), 1)
+                          .Where(Condition::FromRaw("a = 1"))
+                          .Where(Condition::FromRaw("b = 2"))),
                std::logic_error);
 }
 

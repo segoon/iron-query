@@ -8,11 +8,15 @@ namespace iron_query {
 DeleteFrom::DeleteFrom(const Table &tbl) : from_(tbl.ToStringBracketed()) {}
 
 DeleteFrom DeleteFrom::Using(const VirtualTable &tbl) && {
+  if (!using_.empty())
+    throw std::logic_error("iron_query: USING clause is already set");
   using_ = tbl.ToStringAsFromItem();
   return std::move(*this);
 }
 
 DeleteFrom DeleteFrom::Where(Condition exp) && {
+  if (!where_.empty())
+    throw std::logic_error("iron_query: WHERE clause is already set");
   where_ = exp.ToString();
   return std::move(*this);
 }

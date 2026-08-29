@@ -34,6 +34,8 @@ SelectExpr SelectExpr::Select(std::initializer_list<SelectItem> items) && {
 }
 
 SelectExpr SelectExpr::Where(Condition exp) && {
+  if (!where_.empty())
+    throw std::logic_error("iron_query: WHERE clause is already set");
   where_ = exp.ToString();
   return std::move(*this);
 }
@@ -57,16 +59,22 @@ SelectExpr SelectExpr::GroupBy(std::initializer_list<Expr> exps) && {
 }
 
 SelectExpr SelectExpr::Having(Condition exp) && {
+  if (!having_.empty())
+    throw std::logic_error("iron_query: HAVING clause is already set");
   having_ = exp.ToString();
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Limit(int limit) && {
+  if (!limit_.empty())
+    throw std::logic_error("iron_query: LIMIT clause is already set");
   limit_ = std::to_string(limit);
   return std::move(*this);
 }
 
 SelectExpr SelectExpr::Offset(int offset) && {
+  if (!offset_.empty())
+    throw std::logic_error("iron_query: OFFSET clause is already set");
   offset_ = std::to_string(offset);
   return std::move(*this);
 }

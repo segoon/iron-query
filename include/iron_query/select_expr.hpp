@@ -41,6 +41,7 @@ public:
   SelectExpr Select(std::initializer_list<SelectItem> items) &&;
 
   /// @brief Sets the WHERE clause.
+  /// @throws std::logic_error if the WHERE clause was already set.
   SelectExpr Where(Condition exp) &&;
 
   /// @brief Sets the ORDER BY clause to a single term.
@@ -63,12 +64,15 @@ public:
   /// @brief Sets the HAVING clause.
   /// @note Does not check that `exp` references only grouped columns or
   /// aggregates.
+  /// @throws std::logic_error if the HAVING clause was already set.
   SelectExpr Having(Condition exp) &&;
 
   /// @brief Sets the LIMIT clause.
+  /// @throws std::logic_error if the LIMIT clause was already set.
   SelectExpr Limit(int limit) &&;
 
   /// @brief Sets the OFFSET clause.
+  /// @throws std::logic_error if the OFFSET clause was already set.
   SelectExpr Offset(int offset) &&;
 
   /// @throws std::logic_error if the SELECT or FROM clause was not set, or

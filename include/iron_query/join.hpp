@@ -67,7 +67,8 @@ public:
   /// @brief Sets the ON clause.
   /// @note Does not check that `exp` references only columns of the two
   /// joined tables.
-  /// @throws std::logic_error if this is a NATURAL join.
+  /// @throws std::logic_error if this is a NATURAL join, or if the ON
+  /// clause was already set.
   Join On(Condition exp) &&;
 
   std::string ToString() const override;

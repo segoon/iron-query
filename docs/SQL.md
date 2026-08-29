@@ -142,6 +142,11 @@ whole point of the product (see `docs/VISION.md`).
 - FROM items are validated: an unaliased subquery in `FROM` throws at build time
   instead of failing on the server.
 - Automatic parenthesization driven by the PG precedence table.
+- Singular clauses (`WHERE`, `HAVING`, `LIMIT`, `OFFSET`, `FROM`/`USING` on
+  `UPDATE`/`DELETE`, `ON` on `JOIN`) can be set at most once per builder; a
+  second call throws instead of silently discarding the first — unlike the
+  list clauses (`SELECT`, `GROUP BY`, `ORDER BY`, `RETURNING`), where a
+  second call intentionally replaces the list.
 
 ### Gaps
 

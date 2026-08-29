@@ -24,10 +24,12 @@ public:
   /// @brief Sets the FROM clause, so SET/WHERE expressions may reference
   /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
   /// VirtualTable::As has aliased.
-  /// @throws std::logic_error if `tbl` is a subquery without an alias.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// the FROM clause was already set.
   Update From(const VirtualTable &tbl) &&;
 
   /// @brief Sets the WHERE clause.
+  /// @throws std::logic_error if the WHERE clause was already set.
   Update Where(Condition exp) &&;
 
   /// @brief Sets the RETURNING clause to a single entry, replacing any
