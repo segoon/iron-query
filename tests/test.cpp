@@ -788,8 +788,22 @@ TEST(TableAlias, Dot) {
   TableAlias alias = TableAlias::From("bar");
   Column name{"name", "TEXT"};
 
-  EXPECT_EQ(alias.Dot("name"), "bar.name");
-  EXPECT_EQ(alias.Dot(name), "bar.name");
+  EXPECT_EQ(alias.Dot("name").ToString(), "bar.name");
+  EXPECT_EQ(alias.Dot(name).ToString(), "bar.name");
+}
+
+TEST(TableAlias, DotUsableDirectlyAsExprNoFromRawNeeded) {
+  Table users = Table::FromRaw("users");
+  TableAlias lhs = TableAlias::From("lhs");
+  TableAlias rhs = TableAlias::From("rhs");
+  Column name{"name", "TEXT"};
+
+  EXPECT_EQ(From(Join(users.As("lhs"), users.As("rhs"), Inner())
+                     .On(lhs.Dot(name) == rhs.Dot(name)))
+                .Select(lhs.Dot(name).As("name"))
+                .ToString(),
+            "SELECT lhs.name AS name FROM users AS lhs INNER JOIN "
+            "users AS rhs ON lhs.name = rhs.name");
 }
 
 TEST(TableAlias, InvalidNameThrows) {

@@ -53,9 +53,8 @@ Column age{"age", "BIGINT"};
 
 std::string query = From(
     Join(users.As("lhs"), users.As("rhs"), Inner())
-        .On(Expr::FromRaw(lhs.Dot("second_name")) ==
-            Expr::FromRaw(rhs.Dot(name))))
-    .Select({Expr::FromRaw(lhs.Dot(name)).As("name"), age})
+        .On(lhs.Dot("second_name") == rhs.Dot(name)))
+    .Select({lhs.Dot(name).As("name"), age})
     .Where(Expr(age).Between(18, 65) && Expr(age).NotIn({30, 40}))
     .ToString();
 

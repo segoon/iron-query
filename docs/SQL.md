@@ -125,7 +125,9 @@ whole point of the product (see `docs/VISION.md`).
 
 - `Column{name, type, is_nullable}` with comparison operators and implicit `Expr` conversion.
 - `TableWithColumns` + `SelectArgAll()` — the "no lost field after migration" story.
-- `TableAlias::From()` with identifier validation; `TableAlias::Dot`.
+- `TableAlias::From()` with identifier validation; `TableAlias::Dot` returns a
+  ready-to-use, correctly-precedenced `Expr` (`alias.column`), so no
+  `Expr::FromRaw` wrapping is needed to qualify a column reference.
 - Trust boundary is explicit: every unescaped entry point is named `*Raw`.
 - `Condition` vs `Expr` separation, so `Where(age + 1)` does not compile.
 - `SelectItem` vs `Expr` separation, so `Where(x.As("y"))` does not compile either.
@@ -139,7 +141,6 @@ whole point of the product (see `docs/VISION.md`).
 
 | Feature | Rarity | Notes |
 |---|---|---|
-| `Column` cannot produce a *qualified* `Expr` | **9** | `TableAlias::Dot` returns `std::string`, so every qualified reference in the README goes through `Expr::FromRaw(left.Dot(name))`. The library's flagship safety feature is bypassed in its own quick-start example. |
 | `Column` has no `IsNull`/`Like`/`In`/`Between`/arithmetic | 8 | Only the six comparisons and `As` are duplicated onto `Column`; everything else needs an explicit `Expr(col)`. Duplication that should be solved by one conversion path, not by more overloads. |
 | `is_nullable` is stored and never used | 7 | Could reject `col == NULL`, or warn on `!=` against a nullable column. |
 | `Column.type` is stored and never used | 6 | Could power a typed `Cast`, or reject `text_col + int_col`. |
@@ -207,11 +208,12 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P2 — makes the schema-safety promise real**
 
-7. **Qualified column references end to end**: `TableAlias::Dot` should return `Expr`,
-   and `TableWithColumns` should hand out `Column`s already bound to their table/alias,
-   so the README example needs no `FromRaw` at all. This subsumes the `Column` operator
-   duplication — make `Column` convert to a fully-qualified `Expr` once instead of
-   re-declaring operators on it.
+7. **`TableWithColumns` → alias binding**: hand out `Column`s already bound to their
+   table/alias, so a qualified reference needs neither `FromRaw` nor a separate
+   `TableAlias::Dot` call, and `alias.Dot(col)` can verify `col` actually belongs to the
+   table. (`TableAlias::Dot` already returns `Expr` — see §3 Supported.) This subsumes the
+   `Column` operator duplication — make `Column` convert to a fully-qualified `Expr` once
+   instead of re-declaring operators on it.
 8. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
    `Cast`), or drop them.
 9. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
