@@ -33,7 +33,25 @@ Join::Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind)
 Join Join::On(Condition exp) && {
   if (natural_)
     throw std::logic_error("iron_query: NATURAL JOIN cannot have an ON clause");
+  if (!using_.empty())
+    throw std::logic_error(
+        "iron_query: JOIN cannot have both ON and USING clauses");
   impl::SetOnce(on_, "ON clause", exp.ToString());
+  return std::move(*this);
+}
+
+Join Join::Using(std::initializer_list<Expr> columns) && {
+  if (natural_)
+    throw std::logic_error(
+        "iron_query: NATURAL JOIN cannot have a USING clause");
+  if (!on_.empty())
+    throw std::logic_error(
+        "iron_query: JOIN cannot have both ON and USING clauses");
+  if (columns.size() == 0)
+    throw std::invalid_argument(
+        "iron_query: USING clause needs at least one column");
+  impl::SetOnce(using_, "USING clause",
+                impl::JoinCsv(impl::RenderAll(columns)));
   return std::move(*this);
 }
 
@@ -41,6 +59,8 @@ std::string Join::ToString() const {
   auto s = a_ + " " + kind_ + " JOIN " + b_;
   if (!on_.empty())
     s += " ON " + on_;
+  if (!using_.empty())
+    s += " USING (" + using_ + ")";
   return s;
 }
 

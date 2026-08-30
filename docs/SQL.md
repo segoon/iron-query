@@ -32,7 +32,7 @@ whole point of the product (see `docs/VISION.md`).
 | `UPDATE ... FROM` | `Update::From`, taking a table, join, or aliased subquery like `SelectExpr`'s `From` |
 | `DELETE FROM ... WHERE` | `DeleteFrom` |
 | `DELETE ... USING` | `DeleteFrom::Using`, taking a table, join, or aliased subquery like `SelectExpr`'s `From` |
-| `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON`. Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
+| `JOIN` | `Join` + `Inner`/`Cross`/`LeftOuter`/`RightOuter`/`FullOuter`, optional `ON` or `USING (cols)` (mutually exclusive). Usable as a `FROM` source: `From(Join(a, b, Inner()).On(cond))` |
 | `NATURAL JOIN` | `Join` + `NaturalInner`/`NaturalLeftOuter`/`NaturalRightOuter`/`NaturalFullOuter` (no `ON`; no `NaturalCross`, matching PostgreSQL's grammar) |
 | `UNION` / `UNION ALL` / `INTERSECT` / `EXCEPT` | `SetOp` |
 | `WITH ... AS (...)` | `With(...)...Main(...)`, N non-recursive CTEs |
@@ -49,7 +49,6 @@ whole point of the product (see `docs/VISION.md`).
 | Multiple `FROM` items (`FROM a, b`) | 7 | Only one item; a join covers most of the need. |
 | `INSERT INTO ... SELECT` | 7 | `Values()` only takes an `Expr` list. |
 | `LIMIT`/`OFFSET` by bind parameter | 7 | `Limit(int)`/`Offset(int)` take `int`, so `LIMIT $1` is impossible. |
-| `JOIN ... USING (cols)` | 5 | Only `ON`. |
 | `ORDER BY`/`LIMIT` applied to a `UNION` result | 5 | `SetOp` has no clauses of its own. |
 | `WITH RECURSIVE` | 4 | |
 | `SELECT` with no `FROM` (`SELECT now()`) | 4 | `EnsureValid()` requires `FROM`. |
@@ -140,7 +139,7 @@ whole point of the product (see `docs/VISION.md`).
   instead of failing on the server.
 - Automatic parenthesization driven by the PG precedence table.
 - Every clause-setting method — singular (`WHERE`, `HAVING`, `LIMIT`,
-  `OFFSET`, `FROM`/`USING` on `UPDATE`/`DELETE`, `ON` on `JOIN`) and
+  `OFFSET`, `FROM`/`USING` on `UPDATE`/`DELETE`, `ON`/`USING` on `JOIN`) and
   list-valued (`SELECT`, `DISTINCT ON`, `GROUP BY`, `ORDER BY`, `RETURNING`,
   `INSERT`'s `Columns`/`Values`/`Rows`) alike — can be set at most once per
   builder; a second call throws instead of silently discarding the first, so

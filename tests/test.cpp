@@ -594,6 +594,71 @@ TEST(Join, OnAlreadySetThrows) {
                std::logic_error);
 }
 
+TEST(Join, Using) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, Inner()).Using({Expr::Ident("id")}).ToString(),
+            "foo INNER JOIN bar USING (\"id\")");
+}
+
+TEST(Join, UsingMultipleColumns) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, Inner())
+                .Using({Expr::Ident("id"), Expr::Ident("tenant")})
+                .ToString(),
+            "foo INNER JOIN bar USING (\"id\", \"tenant\")");
+}
+
+TEST(Join, NaturalWithUsingThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(
+      Ignore(Join(tbl1, tbl2, NaturalInner()).Using({Expr::Ident("id")})),
+      std::logic_error);
+}
+
+TEST(Join, UsingAlreadySetThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .Using({Expr::Ident("id")})
+                          .Using({Expr::Ident("tenant")})),
+               std::logic_error);
+}
+
+TEST(Join, UsingThenOnThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .Using({Expr::Ident("id")})
+                          .On(Condition::FromRaw("foo.a = bar.a"))),
+               std::logic_error);
+}
+
+TEST(Join, OnThenUsingThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))
+                          .Using({Expr::Ident("id")})),
+               std::logic_error);
+}
+
+TEST(Join, UsingEmptyThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner()).Using({})),
+               std::invalid_argument);
+}
+
 TEST(SetOp, Union) {
   Table tbl = Table::FromRaw("foo");
 

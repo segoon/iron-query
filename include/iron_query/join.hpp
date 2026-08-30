@@ -1,5 +1,6 @@
 #pragma once
 
+#include <initializer_list>
 #include <iron_query/condition.hpp>
 #include <iron_query/virtual_table.hpp>
 #include <string>
@@ -67,9 +68,16 @@ public:
   /// @brief Sets the ON clause.
   /// @note Does not check that `exp` references only columns of the two
   /// joined tables.
-  /// @throws std::logic_error if this is a NATURAL join, or if the ON
-  /// clause was already set.
+  /// @throws std::logic_error if this is a NATURAL join, if the ON clause
+  /// was already set, or if a USING clause was already set.
   Join On(Condition exp) &&;
+
+  /// @brief Sets the USING (cols) clause: joins by equating same-named
+  /// columns from each side.
+  /// @throws std::logic_error if this is a NATURAL join, if a USING clause
+  /// was already set, or if an ON clause was already set.
+  /// @throws std::invalid_argument if `columns` is empty.
+  Join Using(std::initializer_list<Expr> columns) &&;
 
   std::string ToString() const override;
 
@@ -82,6 +90,7 @@ private:
   std::string kind_;
   bool natural_;
   std::string on_;
+  std::string using_;
 };
 
 } // namespace iron_query
