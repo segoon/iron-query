@@ -1,6 +1,6 @@
 # IronQuery
 
-A header-only SQL query builder for C++.
+A SQL-first query builder for C++.
 
 # A user
 
@@ -11,3 +11,4 @@ The core risk is to make error with manual SQL typing:
 - missing escaping of string values
 - non-existing table field
 - lost field after migration
+- erroneous expressions with a branch duplication like DELETE ... USING ... USING ...

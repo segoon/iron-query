@@ -12,7 +12,7 @@ A SQL query builder for C++.
 * clang-format, clang-tidy, sanitizers
 * gtest
 * git, .github
-* `make test`
+* test via `make format && make test && make tidy`
 * doxygen comments for all types, methods, functions in `include/`
 * `@note` comments for "this specific syntax invariant is not checked by IQ
 * `[[nodiscard]]` for all types representing intermediate results

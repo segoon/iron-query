@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iron_query/column.hpp>
+#include <iron_query/expr.hpp>
 #include <string>
 #include <string_view>
 
@@ -16,10 +17,10 @@ public:
   static TableAlias From(std::string_view alias);
 
   /// @brief Qualifies a column name as `alias.column`.
-  std::string Dot(const std::string &column) const;
+  Expr Dot(const std::string &column) const;
 
   /// @brief Qualifies a column as `alias.column.name`.
-  std::string Dot(const Column &column) const;
+  Expr Dot(const Column &column) const;
 
 private:
   TableAlias(std::string_view alias);

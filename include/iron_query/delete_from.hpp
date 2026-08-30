@@ -15,15 +15,23 @@ public:
   /// @brief Starts a `DELETE FROM tbl` query.
   DeleteFrom(const Table &tbl);
 
+  /// @brief Sets the USING clause, so WHERE expressions may reference
+  /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
+  /// VirtualTable::As has aliased.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// the USING clause was already set.
+  DeleteFrom Using(const VirtualTable &tbl) &&;
+
   /// @brief Sets the WHERE clause.
+  /// @throws std::logic_error if the WHERE clause was already set.
   DeleteFrom Where(Condition exp) &&;
 
-  /// @brief Sets the RETURNING clause to a single entry, replacing any
-  /// previously set one.
+  /// @brief Sets the RETURNING clause to a single entry.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   DeleteFrom Returning(SelectItem item) &&;
 
-  /// @brief Sets the RETURNING clause to a comma-separated list of entries,
-  /// replacing any previously set one.
+  /// @brief Sets the RETURNING clause to a comma-separated list of entries.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   DeleteFrom Returning(std::initializer_list<SelectItem> items) &&;
 
   /// @throws std::logic_error if the FROM clause was not set.
@@ -31,6 +39,7 @@ public:
 
 private:
   std::string from_;
+  std::string using_;
   std::string where_;
   std::string returning_;
 };

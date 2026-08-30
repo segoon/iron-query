@@ -38,18 +38,42 @@ TEST(Select, Multi) {
       "SELECT a, b FROM test");
 }
 
-TEST(Select, ClauseListsReplacePreviousLists) {
+TEST(Select, SelectAlreadySetThrows) {
   Table tbl = Table::FromRaw("test");
 
-  EXPECT_EQ(From(tbl)
-                .Select({Expr::FromRaw("a")})
-                .Select({Expr::FromRaw("b")})
-                .GroupBy({Expr::FromRaw("a")})
-                .GroupBy({Expr::FromRaw("b")})
-                .OrderBy({Expr::FromRaw("a")})
-                .OrderBy({Expr::FromRaw("b")})
-                .ToString(),
-            "SELECT b FROM test GROUP BY b ORDER BY b");
+  EXPECT_THROW(
+      Ignore(
+          From(tbl).Select({Expr::FromRaw("a")}).Select({Expr::FromRaw("b")})),
+      std::logic_error);
+}
+
+TEST(Select, GroupByAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select({Expr::FromRaw("a")})
+                          .GroupBy({Expr::FromRaw("a")})
+                          .GroupBy({Expr::FromRaw("b")})),
+               std::logic_error);
+}
+
+TEST(Select, OrderByAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select({Expr::FromRaw("a")})
+                          .OrderBy({Expr::FromRaw("a")})
+                          .OrderBy({Expr::FromRaw("b")})),
+               std::logic_error);
+}
+
+TEST(Select, DistinctOnAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .DistinctOn(Expr::FromRaw("a"))
+                          .DistinctOn(Expr::FromRaw("b"))),
+               std::logic_error);
 }
 
 TEST(Select, Where) {
@@ -60,6 +84,15 @@ TEST(Select, Where) {
                 .Where(Condition::FromRaw("a = b"))
                 .ToString(),
             "SELECT * FROM test WHERE a = b");
+}
+
+TEST(Select, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Where(Condition::FromRaw("a = b"))
+                          .Where(Condition::FromRaw("c = d"))),
+               std::logic_error);
 }
 
 TEST(Select, OrderBy) {
@@ -114,6 +147,55 @@ TEST(Select, Distinct) {
             "SELECT DISTINCT a FROM test");
 }
 
+TEST(Select, DistinctOn) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn(Expr::FromRaw("a"))
+                .Select(Expr::FromRaw("*"))
+                .ToString(),
+            "SELECT DISTINCT ON (a) * FROM test");
+}
+
+TEST(Select, DistinctOnMulti) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Select(Expr::FromRaw("*"))
+                .ToString(),
+            "SELECT DISTINCT ON (a, b) * FROM test");
+}
+
+TEST(Select, DistinctOnWithOrderBy) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn(Expr::FromRaw("a"))
+                .Select(Expr::FromRaw("*"))
+                .OrderBy({Expr::FromRaw("a"), Expr::FromRaw("created_at desc")})
+                .ToString(),
+            "SELECT DISTINCT ON (a) * FROM test "
+            "ORDER BY a, created_at desc");
+}
+
+TEST(Select, DistinctAndDistinctOnThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(From(tbl)
+                   .Distinct()
+                   .DistinctOn(Expr::FromRaw("a"))
+                   .Select(Expr::FromRaw("*"))
+                   .ToString(),
+               std::logic_error);
+  EXPECT_THROW(From(tbl)
+                   .DistinctOn(Expr::FromRaw("a"))
+                   .Distinct()
+                   .Select(Expr::FromRaw("*"))
+                   .ToString(),
+               std::logic_error);
+}
+
 TEST(Select, Full) {
   Table tbl = Table::FromRaw("test");
 
@@ -136,6 +218,16 @@ TEST(Select, GroupByHaving) {
             "SELECT a, COUNT(*) FROM test GROUP BY a HAVING COUNT(*) > 1");
 }
 
+TEST(Select, HavingAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl)
+                          .Select(Expr::FromRaw("*"))
+                          .Having(Expr::FromRaw("COUNT(*)") > 1)
+                          .Having(Expr::FromRaw("COUNT(*)") > 2)),
+               std::logic_error);
+}
+
 TEST(Select, GroupByMulti) {
   Table tbl = Table::FromRaw("test");
 
@@ -151,6 +243,21 @@ TEST(Select, LimitOffset) {
 
   EXPECT_EQ(From(tbl).Select(Expr::FromRaw("*")).Limit(10).Offset(5).ToString(),
             "SELECT * FROM test LIMIT 10 OFFSET 5");
+}
+
+TEST(Select, LimitAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(From(tbl).Select(Expr::FromRaw("*")).Limit(10).Limit(20)),
+               std::logic_error);
+}
+
+TEST(Select, OffsetAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(
+      Ignore(From(tbl).Select(Expr::FromRaw("*")).Offset(5).Offset(10)),
+      std::logic_error);
 }
 
 TEST(Select, AllClauses) {
@@ -190,6 +297,19 @@ TEST(SelectFormatted, Distinct) {
 
   EXPECT_EQ(From(tbl).Distinct().Select(Expr::FromRaw("*")).ToStringFormatted(),
             "SELECT DISTINCT\n"
+            "    *\n"
+            "FROM\n"
+            "    test");
+}
+
+TEST(SelectFormatted, DistinctOn) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_EQ(From(tbl)
+                .DistinctOn({Expr::FromRaw("a"), Expr::FromRaw("b")})
+                .Select(Expr::FromRaw("*"))
+                .ToStringFormatted(),
+            "SELECT DISTINCT ON (a, b)\n"
             "    *\n"
             "FROM\n"
             "    test");
@@ -288,11 +408,70 @@ TEST(Delete, From) {
   EXPECT_EQ(DeleteFrom(tbl).ToString(), "DELETE FROM test");
 }
 
+TEST(Delete, Using) {
+  Table tbl = Table::FromRaw("foo");
+  Table other = Table::FromRaw("bar");
+
+  EXPECT_EQ(DeleteFrom(tbl)
+                .Using(other)
+                .Where(Condition::FromRaw("foo.id = bar.id"))
+                .ToString(),
+            "DELETE FROM foo USING bar WHERE foo.id = bar.id");
+}
+
+TEST(Delete, UsingJoin) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_EQ(
+      DeleteFrom(tbl)
+          .Using(Join(a, b, Inner()).On(Condition::FromRaw("a.id = b.id")))
+          .ToString(),
+      "DELETE FROM foo USING a INNER JOIN b ON a.id = b.id");
+}
+
+TEST(Delete, UsingAliasedSubquery) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_EQ(DeleteFrom(tbl)
+                .Using(From(bar).Select(Expr::FromRaw("*")).As("s"))
+                .ToString(),
+            "DELETE FROM foo USING (SELECT * FROM bar) AS s");
+}
+
+TEST(Delete, UsingUnaliasedSubqueryThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_THROW(
+      Ignore(DeleteFrom(tbl).Using(From(bar).Select(Expr::FromRaw("*")))),
+      std::logic_error);
+}
+
+TEST(Delete, UsingAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl).Using(a).Using(b)), std::logic_error);
+}
+
 TEST(Delete, Where) {
   Table tbl = Table::FromRaw("test");
 
   EXPECT_EQ(DeleteFrom(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
             "DELETE FROM test WHERE a = 1");
+}
+
+TEST(Delete, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl)
+                          .Where(Condition::FromRaw("a = 1"))
+                          .Where(Condition::FromRaw("b = 2"))),
+               std::logic_error);
 }
 
 TEST(Delete, Returning) {
@@ -305,6 +484,15 @@ TEST(Delete, Returning) {
                 .Returning({Expr::FromRaw("id"), Expr::FromRaw("name")})
                 .ToString(),
             "DELETE FROM test WHERE a = 1 RETURNING id, name");
+}
+
+TEST(Delete, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("test");
+
+  EXPECT_THROW(Ignore(DeleteFrom(tbl)
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("name"))),
+               std::logic_error);
 }
 
 TEST(Join, Inner) {
@@ -353,6 +541,122 @@ TEST(Join, FullOuter) {
 
   EXPECT_EQ(Join(tbl1, tbl2, FullOuter()).ToString(),
             "foo FULL OUTER JOIN bar");
+}
+
+TEST(Join, NaturalInner) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalInner()).ToString(),
+            "foo NATURAL INNER JOIN bar");
+}
+
+TEST(Join, NaturalLeftOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalLeftOuter()).ToString(),
+            "foo NATURAL LEFT OUTER JOIN bar");
+}
+
+TEST(Join, NaturalRightOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalRightOuter()).ToString(),
+            "foo NATURAL RIGHT OUTER JOIN bar");
+}
+
+TEST(Join, NaturalFullOuter) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, NaturalFullOuter()).ToString(),
+            "foo NATURAL FULL OUTER JOIN bar");
+}
+
+TEST(Join, NaturalWithOnThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, NaturalInner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))),
+               std::logic_error);
+}
+
+TEST(Join, OnAlreadySetThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))
+                          .On(Condition::FromRaw("foo.b = bar.b"))),
+               std::logic_error);
+}
+
+TEST(Join, Using) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, Inner()).Using({Expr::Ident("id")}).ToString(),
+            "foo INNER JOIN bar USING (\"id\")");
+}
+
+TEST(Join, UsingMultipleColumns) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_EQ(Join(tbl1, tbl2, Inner())
+                .Using({Expr::Ident("id"), Expr::Ident("tenant")})
+                .ToString(),
+            "foo INNER JOIN bar USING (\"id\", \"tenant\")");
+}
+
+TEST(Join, NaturalWithUsingThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(
+      Ignore(Join(tbl1, tbl2, NaturalInner()).Using({Expr::Ident("id")})),
+      std::logic_error);
+}
+
+TEST(Join, UsingAlreadySetThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .Using({Expr::Ident("id")})
+                          .Using({Expr::Ident("tenant")})),
+               std::logic_error);
+}
+
+TEST(Join, UsingThenOnThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .Using({Expr::Ident("id")})
+                          .On(Condition::FromRaw("foo.a = bar.a"))),
+               std::logic_error);
+}
+
+TEST(Join, OnThenUsingThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner())
+                          .On(Condition::FromRaw("foo.a = bar.a"))
+                          .Using({Expr::Ident("id")})),
+               std::logic_error);
+}
+
+TEST(Join, UsingEmptyThrows) {
+  Table tbl1 = Table::FromRaw("foo");
+  Table tbl2 = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Join(tbl1, tbl2, Inner()).Using({})),
+               std::invalid_argument);
 }
 
 TEST(SetOp, Union) {
@@ -447,6 +751,51 @@ TEST(With, DottedNameAllowed) {
                 .Main(From(tbl).Select(Expr::FromRaw("*")))
                 .ToString(),
             "WITH my_schema.cte AS (SELECT a FROM foo) SELECT * FROM foo");
+}
+
+TEST(WithFormatted, Single) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(With("cte", From(tbl).Select(Expr::FromRaw("a")))
+                .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*")))
+                .ToStringFormatted(),
+            "WITH\n"
+            "    cte AS (\n"
+            "        SELECT\n"
+            "            a\n"
+            "        FROM\n"
+            "            foo\n"
+            "    )\n"
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    cte");
+}
+
+TEST(WithFormatted, Chained) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(With("a", From(tbl).Select(Expr::FromRaw("x")))
+                .With("b", From(tbl).Select(Expr::FromRaw("y")))
+                .Main(From(Table::FromRaw("a")).Select(Expr::FromRaw("*")))
+                .ToStringFormatted(),
+            "WITH\n"
+            "    a AS (\n"
+            "        SELECT\n"
+            "            x\n"
+            "        FROM\n"
+            "            foo\n"
+            "    ),\n"
+            "    b AS (\n"
+            "        SELECT\n"
+            "            y\n"
+            "        FROM\n"
+            "            foo\n"
+            "    )\n"
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    a");
 }
 
 TEST(Join, SelectSelect) {
@@ -570,15 +919,24 @@ TEST(Insert, MultiRowValuesSingleColumn) {
       "INSERT INTO foo (a) VALUES (1), (2)");
 }
 
-TEST(Insert, RowsReplacesPreviousRows) {
+TEST(Insert, RowsAlreadySetThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(InsertInto(tbl)
-                .Columns({Expr::FromRaw("a")})
-                .Rows({{1}, {2}})
-                .Rows({{3}})
-                .ToString(),
-            "INSERT INTO foo (a) VALUES (3)");
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Rows({{1}, {2}})
+                          .Rows({{3}})),
+               std::logic_error);
+}
+
+TEST(Insert, ValuesAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Values({1})
+                          .Values({2})),
+               std::logic_error);
 }
 
 TEST(Insert, RowsArityMismatchThrows) {
@@ -605,6 +963,17 @@ TEST(Insert, Returning) {
                 .Returning({Expr::FromRaw("id"), Expr::FromRaw("a")})
                 .ToString(),
             "INSERT INTO foo (a) VALUES (1) RETURNING id, a");
+}
+
+TEST(Insert, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Values({1})
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("a"))),
+               std::logic_error);
 }
 
 TEST(Insert, OnConflictDoNothing) {
@@ -649,16 +1018,13 @@ TEST(Insert, OnConflictDoUpdateEmptyAssignmentsThrows) {
                std::invalid_argument);
 }
 
-TEST(Insert, ColumnsAndValuesReplacePreviousLists) {
+TEST(Insert, ColumnsAlreadySetThrows) {
   Table tbl = Table::FromRaw("foo");
 
-  EXPECT_EQ(InsertInto(tbl)
-                .Columns({Expr::FromRaw("a")})
-                .Columns({Expr::FromRaw("b")})
-                .Values({1})
-                .Values({2})
-                .ToString(),
-            "INSERT INTO foo (b) VALUES (2)");
+  EXPECT_THROW(Ignore(InsertInto(tbl)
+                          .Columns({Expr::FromRaw("a")})
+                          .Columns({Expr::FromRaw("b")})),
+               std::logic_error);
 }
 
 TEST(Insert, ArityMismatchThrows) {
@@ -704,6 +1070,70 @@ TEST(Update, MultiSet) {
             "UPDATE foo SET a = 1, b = 2");
 }
 
+TEST(Update, From) {
+  Table tbl = Table::FromRaw("foo");
+  Table other = Table::FromRaw("bar");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("age"), Expr::FromRaw("bar.age"))
+                .From(other)
+                .Where(Condition::FromRaw("foo.id = bar.id"))
+                .ToString(),
+            "UPDATE foo SET age = bar.age FROM bar WHERE foo.id = bar.id");
+}
+
+TEST(Update, FromJoin) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("x"), 1)
+                .From(Join(a, b, Inner()).On(Condition::FromRaw("a.id = b.id")))
+                .ToString(),
+            "UPDATE foo SET x = 1 FROM a INNER JOIN b ON a.id = b.id");
+}
+
+TEST(Update, FromAliasedSubquery) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_EQ(Update(tbl)
+                .Set(Expr::FromRaw("x"), 1)
+                .From(From(bar).Select(Expr::FromRaw("*")).As("s"))
+                .ToString(),
+            "UPDATE foo SET x = 1 FROM (SELECT * FROM bar) AS s");
+}
+
+TEST(Update, FromUnaliasedSubqueryThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table bar = Table::FromRaw("bar");
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(Expr::FromRaw("x"), 1)
+                          .From(From(bar).Select(Expr::FromRaw("*")))),
+               std::logic_error);
+}
+
+TEST(Update, FromAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Table a = Table::FromRaw("a");
+  Table b = Table::FromRaw("b");
+
+  EXPECT_THROW(Ignore(Update(tbl).Set(Expr::FromRaw("x"), 1).From(a).From(b)),
+               std::logic_error);
+}
+
+TEST(Update, WhereAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(Expr::FromRaw("x"), 1)
+                          .Where(Condition::FromRaw("a = 1"))
+                          .Where(Condition::FromRaw("b = 2"))),
+               std::logic_error);
+}
+
 TEST(Update, MissingSetThrows) {
   Table tbl = Table::FromRaw("foo");
   EXPECT_THROW(Update(tbl).Where(Condition::FromRaw("a = 1")).ToString(),
@@ -723,6 +1153,17 @@ TEST(Update, Returning) {
                 .ToString(),
             "UPDATE foo SET age = 42 WHERE age = 1 RETURNING id, age AS "
             "old_age");
+}
+
+TEST(Update, ReturningAlreadySetThrows) {
+  Table tbl = Table::FromRaw("foo");
+  Column age{"age", "BIGINT"};
+
+  EXPECT_THROW(Ignore(Update(tbl)
+                          .Set(age, 42)
+                          .Returning(Expr::FromRaw("id"))
+                          .Returning(Expr::FromRaw("age"))),
+               std::logic_error);
 }
 
 TEST(Column, Select) {
@@ -748,7 +1189,7 @@ TEST(Select, ColumnAlias) {
   Column age{"age", "BIGINT"};
 
   EXPECT_EQ(From(tbl)
-                .Select({age.As("years"), (Expr(age) + 1).As("next_year")})
+                .Select({age.As("years"), (age.ToExpr() + 1).As("next_year")})
                 .ToString(),
             "SELECT age AS years, age + 1 AS next_year FROM foo");
   EXPECT_EQ(From(tbl).Select(Expr::CountAll().As("n")).ToString(),
@@ -775,6 +1216,14 @@ TEST(Column, Compare) {
   EXPECT_EQ((age != 18).ToString(), "age != 18");
 }
 
+TEST(Column, ToExpr) {
+  Column age{"age", "BIGINT"};
+
+  EXPECT_EQ(age.ToExpr().IsNull().ToString(), "age IS NULL");
+  EXPECT_EQ(age.ToExpr().Between(0, 18).ToString(), "age BETWEEN 0 AND 18");
+  EXPECT_EQ((age.ToExpr() + 1).ToString(), "age + 1");
+}
+
 TEST(TableWithColumns, Simple) {
   Column name{"name", "TEXT"};
   Column age{"age", "BIGINT"};
@@ -784,12 +1233,56 @@ TEST(TableWithColumns, Simple) {
             "SELECT name, age FROM foo");
 }
 
+TEST(TableWithColumns, AsAndDotSelfJoin) {
+  Column name{"name", "TEXT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name});
+  TableWithColumns lhs = users.As("lhs");
+  TableWithColumns rhs = users.As("rhs");
+
+  EXPECT_EQ(From(Join(lhs, rhs, Inner()).On(lhs.Dot(name) == rhs.Dot(name)))
+                .Select(lhs.Dot(name).As("name"))
+                .ToString(),
+            "SELECT lhs.name AS name FROM users AS lhs INNER JOIN "
+            "users AS rhs ON lhs.name = rhs.name");
+}
+
+TEST(TableWithColumns, DotRejectsUnknownColumn) {
+  Column name{"name", "TEXT"};
+  Column age{"age", "BIGINT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name}).As("u");
+
+  EXPECT_EQ(users.Dot(name).ToString(), "u.name");
+  EXPECT_THROW(Ignore(users.Dot(age)), std::invalid_argument);
+  EXPECT_THROW(Ignore(users.Dot("nonexistent")), std::invalid_argument);
+}
+
+TEST(TableWithColumns, DotRequiresAsFirst) {
+  Column name{"name", "TEXT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name});
+
+  EXPECT_THROW(Ignore(users.Dot(name)), std::logic_error);
+}
+
 TEST(TableAlias, Dot) {
   TableAlias alias = TableAlias::From("bar");
   Column name{"name", "TEXT"};
 
-  EXPECT_EQ(alias.Dot("name"), "bar.name");
-  EXPECT_EQ(alias.Dot(name), "bar.name");
+  EXPECT_EQ(alias.Dot("name").ToString(), "bar.name");
+  EXPECT_EQ(alias.Dot(name).ToString(), "bar.name");
+}
+
+TEST(TableAlias, DotUsableDirectlyAsExprNoFromRawNeeded) {
+  Table users = Table::FromRaw("users");
+  TableAlias lhs = TableAlias::From("lhs");
+  TableAlias rhs = TableAlias::From("rhs");
+  Column name{"name", "TEXT"};
+
+  EXPECT_EQ(From(Join(users.As("lhs"), users.As("rhs"), Inner())
+                     .On(lhs.Dot(name) == rhs.Dot(name)))
+                .Select(lhs.Dot(name).As("name"))
+                .ToString(),
+            "SELECT lhs.name AS name FROM users AS lhs INNER JOIN "
+            "users AS rhs ON lhs.name = rhs.name");
 }
 
 TEST(TableAlias, InvalidNameThrows) {
@@ -827,6 +1320,30 @@ TEST(Expr, LogicalMath) {
 TEST(Expr, Not) {
   EXPECT_EQ((!(Expr(1) < 2)).ToString(), "NOT 1 < 2");
   EXPECT_EQ((!!(Expr(1) < 2)).ToString(), "NOT (NOT 1 < 2)");
+}
+
+TEST(Expr, UnaryMinus) {
+  EXPECT_EQ((-Expr::FromRaw("a")).ToString(), "-a");
+  EXPECT_EQ((-(Expr::FromRaw("a") + 1)).ToString(), "-(a + 1)");
+}
+
+TEST(Expr, UnaryMinusDouble) {
+  EXPECT_EQ((-(-Expr::FromRaw("a"))).ToString(), "-(-a)");
+}
+
+TEST(Expr, UnaryNot) {
+  EXPECT_EQ((!Expr::FromRaw("is_admin")).ToString(), "NOT is_admin");
+}
+
+TEST(Expr, Concat) {
+  EXPECT_EQ(Expr::FromRaw("a").Concat(Expr::FromRaw("b")).ToString(), "a || b");
+  EXPECT_EQ((Expr::FromRaw("a") + 1).Concat(Expr::FromRaw("b")).ToString(),
+            "a + 1 || b");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .Concat(Expr::FromRaw("b"))
+                .Dot(Expr::FromRaw("c"))
+                .ToString(),
+            "(a || b).c");
 }
 
 TEST(Expr, Dot) {
@@ -1048,6 +1565,67 @@ TEST(Expr, CallInvalidNameThrows) {
   EXPECT_THROW(Ignore(Expr::Call("not an identifier", {})),
                std::invalid_argument);
   EXPECT_THROW(Ignore(Expr::Call("", {})), std::invalid_argument);
+}
+
+TEST(Expr, CallDistinct) {
+  EXPECT_EQ(
+      Expr::CallDistinct("string_agg", {Expr::FromRaw("x"), Expr::Literal(",")})
+          .ToString(),
+      "string_agg(DISTINCT x, ',')");
+}
+
+TEST(Expr, CallDistinctInvalidThrows) {
+  EXPECT_THROW(Ignore(Expr::CallDistinct("not an identifier", {Expr(1)})),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::CallDistinct("string_agg", {})),
+               std::invalid_argument);
+}
+
+TEST(Expr, BinaryOp) {
+  EXPECT_EQ(Expr::FromRaw("a").BinaryOp("~", Expr::Literal("^x")).ToString(),
+            "a ~ '^x'");
+  EXPECT_EQ(Expr::FromRaw("a").BinaryOp("@>", Expr::FromRaw("b")).ToString(),
+            "a @> b");
+  // kAnyOther default precedence binds looser than kAnd, so an AND operand
+  // gets parenthesized.
+  EXPECT_EQ((Expr::FromRaw("a") == 1)
+                .operator Expr()
+                .BinaryOp("&&", Expr::FromRaw("b"))
+                .ToString(),
+            "(a = 1) && b");
+  EXPECT_EQ(Expr::FromRaw("a")
+                .BinaryOp("<<", Expr::FromRaw("b"), OperatorPrecedence::kExp)
+                .Dot(Expr::FromRaw("c"))
+                .ToString(),
+            "(a << b).c");
+}
+
+TEST(Expr, BinaryOpInvalidNameThrows) {
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("x", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("--", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("/*", Expr::FromRaw("b"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::FromRaw("a").BinaryOp("++", Expr::FromRaw("b"))),
+               std::invalid_argument);
+}
+
+TEST(Expr, PrefixOp) {
+  EXPECT_EQ(Expr::PrefixOp("@", Expr::FromRaw("x")).ToString(), "@ x");
+  EXPECT_EQ(Expr::PrefixOp("~", Expr::FromRaw("x"))
+                .Dot(Expr::FromRaw("y"))
+                .ToString(),
+            "(~ x).y");
+}
+
+TEST(Expr, PrefixOpInvalidNameThrows) {
+  EXPECT_THROW(Ignore(Expr::PrefixOp("", Expr::FromRaw("x"))),
+               std::invalid_argument);
+  EXPECT_THROW(Ignore(Expr::PrefixOp("x", Expr::FromRaw("x"))),
+               std::invalid_argument);
 }
 
 TEST(Expr, Case) {

@@ -14,8 +14,13 @@ Update Update::Set(const Expr &column, const Expr &value) && {
   return std::move(*this);
 }
 
+Update Update::From(const VirtualTable &tbl) && {
+  impl::SetOnce(from_, "FROM clause", tbl.ToStringAsFromItem());
+  return std::move(*this);
+}
+
 Update Update::Where(Condition exp) && {
-  where_ = exp.ToString();
+  impl::SetOnce(where_, "WHERE clause", exp.ToString());
   return std::move(*this);
 }
 
@@ -24,7 +29,8 @@ Update Update::Returning(SelectItem item) && {
 }
 
 Update Update::Returning(std::initializer_list<SelectItem> items) && {
-  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  impl::SetOnce(returning_, "RETURNING clause",
+                impl::JoinCsv(impl::RenderAll(items)));
   return std::move(*this);
 }
 
@@ -33,6 +39,8 @@ std::string Update::ToString() const {
     throw std::logic_error("iron_query: SET clause is not set");
 
   auto s = "UPDATE " + table_ + " SET " + set_;
+  if (!from_.empty())
+    s += " FROM " + from_;
   if (!where_.empty())
     s += " WHERE " + where_;
   if (!returning_.empty())

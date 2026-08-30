@@ -5,6 +5,7 @@
 #include <iron_query/expr.hpp>
 #include <iron_query/select_item.hpp>
 #include <iron_query/table.hpp>
+#include <iron_query/virtual_table.hpp>
 #include <string>
 
 namespace iron_query {
@@ -20,15 +21,23 @@ public:
   /// nor that `value`'s type matches that column's declared type.
   Update Set(const Expr &column, const Expr &value) &&;
 
+  /// @brief Sets the FROM clause, so SET/WHERE expressions may reference
+  /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
+  /// VirtualTable::As has aliased.
+  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// the FROM clause was already set.
+  Update From(const VirtualTable &tbl) &&;
+
   /// @brief Sets the WHERE clause.
+  /// @throws std::logic_error if the WHERE clause was already set.
   Update Where(Condition exp) &&;
 
-  /// @brief Sets the RETURNING clause to a single entry, replacing any
-  /// previously set one.
+  /// @brief Sets the RETURNING clause to a single entry.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   Update Returning(SelectItem item) &&;
 
-  /// @brief Sets the RETURNING clause to a comma-separated list of entries,
-  /// replacing any previously set one.
+  /// @brief Sets the RETURNING clause to a comma-separated list of entries.
+  /// @throws std::logic_error if the RETURNING clause was already set.
   Update Returning(std::initializer_list<SelectItem> items) &&;
 
   /// @throws std::logic_error if no SET assignment was added.
@@ -37,6 +46,7 @@ public:
 private:
   std::string table_;
   std::string set_;
+  std::string from_;
   std::string where_;
   std::string returning_;
 };

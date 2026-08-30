@@ -5,6 +5,30 @@ Note: this is NOT an ORM!
 
 Licensed under the [Apache License 2.0](LICENSE).
 
+# Do I need IronQuery?
+
+Answer the following questions:
+1) Are your queries structure defined in runtime (e.g. optional `LIMIT`/`WHERE` or dynamic `WHERE` clause)?
+2) Do you want to keep yourself distant from SQL?
+3) Is the query performance critical?
+
+# Features
+
+1) `*Raw`-named entry points (`Expr::FromRaw`, `Table::FromRaw`, ...) mark every
+   place unescaped SQL can enter a query, so the untrusted-input surface can be
+   audited by grepping for `Raw`;
+2) `Condition`/`Expr`/`SelectItem` are distinct types, so a non-boolean
+   expression in `WHERE`/`HAVING`/`ON` or a select-list-only alias used
+   elsewhere fails to compile instead of building a wrong query;
+3) Every clause-setting method (`WHERE`, `LIMIT`, `FROM`/`USING`, `SELECT`, ...)
+   can be set at most once per builder, so a copy-paste bug like
+   `DELETE ... USING ... USING ...` throws instead of silently overwriting
+   the first clause;
+4) No template-metaprogramming EDSL: queries are built with ordinary
+   OOP, not deeply nested templates, so compile errors stay readable;
+5) `TableWithColumns::As()`/`Dot()` binds an alias to its declared column
+   list, so a qualified reference to a column that doesn't belong to the
+   table throws at build time instead of failing on the server.
 
 # Architectual decisions
 
@@ -53,9 +77,8 @@ Column age{"age", "BIGINT"};
 
 std::string query = From(
     Join(users.As("lhs"), users.As("rhs"), Inner())
-        .On(Expr::FromRaw(lhs.Dot("second_name")) ==
-            Expr::FromRaw(rhs.Dot(name))))
-    .Select({Expr::FromRaw(lhs.Dot(name)).As("name"), age})
+        .On(lhs.Dot("second_name") == rhs.Dot(name)))
+    .Select({lhs.Dot(name).As("name"), age})
     .Where(Expr(age).Between(18, 65) && Expr(age).NotIn({30, 40}))
     .ToString();
 
@@ -99,3 +122,21 @@ Expr::Ident(dynamically_sourced_column_name)
 Bind-parameter placeholders (`_1`..`_10`) remain the preferred way to pass values when your
 SQL driver supports parameterized queries — prefer them over `Expr::Literal` whenever
 possible.
+
+
+# Build dependencies
+
+The library itself is header-only and has no dependencies beyond a C++17 compiler.
+Building/testing/linting the project needs, depending on the `make` target used:
+
+* `test` — CMake (>= 3.16), a C++17 compiler (GCC or Clang), GoogleTest (`libgtest-dev`)
+* `format`/`format-check` — `clang-format`
+* `tidy` — `clang-tidy`
+* `sanitize` — a C++17 compiler with `-fsanitize=address,undefined` support
+* `docs` — `doxygen` (optionally `graphviz`/`dot`, for inheritance/collaboration graphs)
+
+
+# Documentation
+
+Run `make docs` to generate the API reference from the doxygen comments in `include/`;
+open `build/docs/html/index.html` to view it.

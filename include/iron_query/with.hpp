@@ -9,13 +9,36 @@ namespace iron_query {
 /// (subquery, FROM source, etc.)
 class [[nodiscard]] WithQuery final : public VirtualTable {
 public:
-  WithQuery(std::string ctes, std::string main);
+  /// @brief Wraps already-rendered `ctes` (`name AS (query), ...`) and
+  /// `main` query text, plus their multi-line formatted counterparts; only
+  /// reachable via @ref WithBuilder::Main.
+  WithQuery(std::string ctes, std::string main, std::string ctes_formatted,
+            std::string main_formatted);
 
   std::string ToString() const override;
+
+  /// @brief Renders the WITH clause with each CTE in its own indented
+  /// block, followed by the formatted main query, e.g.:
+  /// ```
+  /// WITH
+  ///     cte AS (
+  ///         SELECT
+  ///             a
+  ///         FROM
+  ///             foo
+  ///     )
+  /// SELECT
+  ///     *
+  /// FROM
+  ///     cte
+  /// ```
+  std::string ToStringFormatted() const override;
 
 private:
   std::string ctes_;
   std::string main_;
+  std::string ctes_formatted_;
+  std::string main_formatted_;
 };
 
 /// @brief Transitional representation for a WITH clause being built up
@@ -36,6 +59,7 @@ private:
   WithBuilder(std::string name, const VirtualTable &query);
 
   std::string ctes_;
+  std::string ctes_formatted_;
 
   friend WithBuilder With(std::string name, const VirtualTable &query);
 };

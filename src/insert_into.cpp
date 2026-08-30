@@ -28,20 +28,21 @@ void EnsureSameArity(const std::vector<std::string> &columns,
 } // namespace
 
 InsertInto InsertInto::Columns(std::initializer_list<Expr> cols) && {
-  columns_ = impl::RenderAll(cols);
+  impl::SetOnce(columns_, "column list", impl::RenderAll(cols));
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
 
 InsertInto InsertInto::Values(std::initializer_list<Expr> vals) && {
-  rows_ = {impl::RenderAll(vals)};
+  impl::SetOnce(rows_, "row values",
+                std::vector<std::vector<std::string>>{impl::RenderAll(vals)});
   EnsureSameArity(columns_, rows_);
   return std::move(*this);
 }
 
 InsertInto
 InsertInto::Rows(std::initializer_list<std::initializer_list<Expr>> rows) && {
-  rows_.clear();
+  impl::EnsureNotSet(rows_, "row values");
   rows_.reserve(rows.size());
   for (const auto &row : rows)
     rows_.push_back(impl::RenderAll(row));
@@ -54,7 +55,8 @@ InsertInto InsertInto::Returning(SelectItem item) && {
 }
 
 InsertInto InsertInto::Returning(std::initializer_list<SelectItem> items) && {
-  returning_ = impl::JoinCsv(impl::RenderAll(items));
+  impl::SetOnce(returning_, "RETURNING clause",
+                impl::JoinCsv(impl::RenderAll(items)));
   return std::move(*this);
 }
 

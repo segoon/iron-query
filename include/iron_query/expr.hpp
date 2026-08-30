@@ -48,7 +48,7 @@ public:
   /// @brief Wraps a floating-point literal, rendered with enough digits to
   /// round-trip back to the same value.
   /// @throws std::invalid_argument if `value` is NaN or infinite: SQL spells
-  /// those as typed literals (`'NaN'::float8`), so use @ref FromRaw instead.
+  /// those as typed literals (`'NaN'::%float8`), so use @ref FromRaw instead.
   template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
   Expr(T value) : Expr(FromDouble(static_cast<double>(value))) {}
 
@@ -97,6 +97,16 @@ public:
   /// function's actual signature.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
 
+  /// @brief Generalizes @ref CountDistinct to any aggregate, e.g.
+  /// CallDistinct("string_agg", {x, sep}) -> "string_agg(DISTINCT x, sep)".
+  /// `name` must be a valid (optionally dotted) SQL identifier.
+  /// @throws std::invalid_argument if `name` is not a valid identifier or
+  /// `args` is empty.
+  /// @note Does not check `args`' count or types against the named SQL
+  /// aggregate's actual signature.
+  static Expr CallDistinct(const std::string &name,
+                           std::initializer_list<Expr> args);
+
   /// @brief COALESCE(args...): the first non-NULL argument.
   /// @throws std::invalid_argument if `args` is empty.
   static Expr Coalesce(std::initializer_list<Expr> args);
@@ -121,6 +131,20 @@ public:
 
   /// @brief NOT EXISTS (subquery).
   static Condition NotExists(const VirtualTable &subquery);
+
+  /// @brief Arbitrary prefix operator not otherwise named by IronQuery, e.g.
+  /// PrefixOp("@", x) -> "@ x". `op` must be a syntactically valid SQL
+  /// operator name.
+  /// @throws std::invalid_argument if `op` is not a syntactically valid
+  /// operator name.
+  /// @note Does not check that `op` names a real operator or that `operand`
+  /// is a valid operand for it.
+  /// @note Prefer the existing named methods (`operator-`, `operator!`, ...)
+  /// for the operators IronQuery already supports; use this only for
+  /// operators it doesn't.
+  static Expr
+  PrefixOp(const std::string &op, const Expr &operand,
+           OperatorPrecedence precedence = OperatorPrecedence::kUnaryPlus);
 
   /// @brief COUNT(arg).
   static Expr Count(const Expr &arg);
@@ -165,6 +189,21 @@ public:
 
   /// @brief Exponentiation: `this ^ other`.
   Expr operator^(const Expr &other) const;
+
+  /// @brief Arbitrary infix operator not otherwise named by IronQuery, e.g.
+  /// BinaryOp("~", pattern) -> "this ~ pattern" (PostgreSQL regex match).
+  /// `op` must be a syntactically valid SQL operator name; it is not checked
+  /// against a real operator catalog.
+  /// @throws std::invalid_argument if `op` is not a syntactically valid
+  /// operator name.
+  /// @note Does not check that `op` names a real operator or that `this` and
+  /// `other` are valid operands for it.
+  /// @note Prefer the existing named methods (`operator+`, `Like`, `Concat`,
+  /// ...) for the operators IronQuery already supports; use this only for
+  /// operators it doesn't.
+  Expr
+  BinaryOp(const std::string &op, const Expr &other,
+           OperatorPrecedence precedence = OperatorPrecedence::kAnyOther) const;
 
   /// @brief `this BETWEEN a AND b`.
   /// @note Does not check that `a` and `b` share a comparable type with
@@ -256,24 +295,6 @@ public:
   /// comparison.
   Condition IsNotDistinctFrom(const Expr &other) const;
 
-  /// @brief `this < other`.
-  Condition operator<(const Expr &other) const;
-
-  /// @brief `this <= other`.
-  Condition operator<=(const Expr &other) const;
-
-  /// @brief `this > other`.
-  Condition operator>(const Expr &other) const;
-
-  /// @brief `this >= other`.
-  Condition operator>=(const Expr &other) const;
-
-  /// @brief `this = other`.
-  Condition operator==(const Expr &other) const;
-
-  /// @brief `this != other`.
-  Condition operator!=(const Expr &other) const;
-
   /// @brief `this + other`.
   Expr operator+(const Expr &other) const;
 
@@ -288,6 +309,21 @@ public:
 
   /// @brief `this % other`.
   Expr operator%(const Expr &other) const;
+
+  /// @brief Unary minus: `-this`.
+  Expr operator-() const;
+
+  /// @brief Value-level negation: `NOT this`. Distinct from
+  /// `Condition::operator!`, which negates a predicate; this negates a
+  /// boolean-typed Expr while staying an Expr (e.g. for use in a SELECT
+  /// list: `(!is_admin).As("not_admin")`).
+  /// @note Does not check that `this` is boolean-typed.
+  Expr operator!() const;
+
+  /// @brief String concatenation: `this || other`. Named rather than
+  /// `operator||` because that operator is already `Condition`'s logical OR.
+  /// @note Does not check that `this` and `other` are text-typed.
+  Expr Concat(const Expr &other) const;
 
   /// @brief Names this expression in a SELECT list: `this AS name`. `name`
   /// must be a plain (undotted) SQL identifier.
@@ -318,5 +354,23 @@ private:
   std::string expr_;
   OperatorPrecedence precedence_;
 };
+
+/// @brief `a < b`.
+Condition operator<(const Expr &a, const Expr &b);
+
+/// @brief `a <= b`.
+Condition operator<=(const Expr &a, const Expr &b);
+
+/// @brief `a > b`.
+Condition operator>(const Expr &a, const Expr &b);
+
+/// @brief `a >= b`.
+Condition operator>=(const Expr &a, const Expr &b);
+
+/// @brief `a = b`.
+Condition operator==(const Expr &a, const Expr &b);
+
+/// @brief `a != b`.
+Condition operator!=(const Expr &a, const Expr &b);
 
 } // namespace iron_query

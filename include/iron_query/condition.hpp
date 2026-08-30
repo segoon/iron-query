@@ -46,6 +46,12 @@ public:
 
 private:
   friend class Expr;
+  friend Condition operator<(const Expr &a, const Expr &b);
+  friend Condition operator<=(const Expr &a, const Expr &b);
+  friend Condition operator>(const Expr &a, const Expr &b);
+  friend Condition operator>=(const Expr &a, const Expr &b);
+  friend Condition operator==(const Expr &a, const Expr &b);
+  friend Condition operator!=(const Expr &a, const Expr &b);
 
   Condition(std::string s, OperatorPrecedence precedence);
 

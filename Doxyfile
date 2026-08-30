@@ -1,0 +1,21 @@
+# Minimal Doxygen config for IronQuery's public API (include/).
+# Unlisted settings fall back to Doxygen's built-in defaults.
+
+PROJECT_NAME           = "IronQuery"
+PROJECT_BRIEF          = "A SQL-first query builder for C++"
+
+INPUT                  = include README.md
+USE_MDFILE_AS_MAINPAGE = README.md
+RECURSIVE              = YES
+
+OUTPUT_DIRECTORY       = build/docs
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+EXTRACT_ALL            = NO
+EXCLUDE_SYMBOLS        = iron_query::impl::*
+
+WARN_IF_UNDOCUMENTED   = YES
+
+QUIET                  = YES

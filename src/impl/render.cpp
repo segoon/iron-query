@@ -12,6 +12,17 @@ std::string JoinCsv(const std::vector<std::string> &items) {
   return s;
 }
 
+std::string IndentBlock(const std::string &text, int spaces) {
+  const std::string prefix(spaces, ' ');
+  std::string s = prefix;
+  for (char c : text) {
+    s += c;
+    if (c == '\n')
+      s += prefix;
+  }
+  return s;
+}
+
 std::string RenderTerm(const Expr &exp) { return exp.ToString(); }
 
 std::string RenderTerm(const SelectItem &item) { return item.ToString(); }

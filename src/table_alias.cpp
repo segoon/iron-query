@@ -1,4 +1,5 @@
 #include "impl/identifier.hpp"
+#include <iron_query/operator_precedence.hpp>
 #include <iron_query/table_alias.hpp>
 
 namespace iron_query {
@@ -10,12 +11,10 @@ TableAlias TableAlias::From(std::string_view alias) {
   return TableAlias(alias);
 }
 
-std::string TableAlias::Dot(const std::string &column) const {
-  return alias_ + "." + column;
+Expr TableAlias::Dot(const std::string &column) const {
+  return Expr::FromRaw(alias_ + "." + column, OperatorPrecedence::kDot);
 }
 
-std::string TableAlias::Dot(const Column &column) const {
-  return Dot(column.name);
-}
+Expr TableAlias::Dot(const Column &column) const { return Dot(column.name); }
 
 } // namespace iron_query
