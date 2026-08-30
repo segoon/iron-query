@@ -1,1 +1,5 @@
 - example with raw libpq (?)
+- for doxygen: group types into statements, expressions, etc.
+- fix list items from readme in doxygen 
+- exception class
+- user-friendly readme: getting started, examples links, alternatives, development
