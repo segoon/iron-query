@@ -90,7 +90,7 @@ whole point of the product (see `docs/VISION.md`).
 | `EXISTS` / `NOT EXISTS` | `Expr::Exists`/`NotExists` |
 | Field access `a.b`, subscript `a[i]` | `Expr::Dot`, `operator[]` |
 | `CAST(x AS t)` | `Expr::CastRaw` (type is raw) |
-| `COLLATE` | `Expr::Collate` + `Collation` |
+| `COLLATE` | `Expr::Collate` + `Collation` (`FromRaw`, `Default`, `C`, `Posix`) |
 | Function call | `Expr::Call(name, {args})`, name validated as an identifier |
 | Aggregates | `Count`, `CountAll`, `CountDistinct`, `Sum`, `Avg`, `Min`, `Max`; any other aggregate via `Expr::Call`/`Expr::CallDistinct(name, {args})` |
 | Arbitrary infix/prefix operator, e.g. regex `~`/`!~`, JSON `->`/`->>`/`#>`/`@>`, bitwise `& \| # << >>`, array `&&`/`@>` | `Expr::BinaryOp(op, other)`/`Expr::PrefixOp(op, operand)`, `op` validated as an operator-shaped token (not checked against a real operator catalog); prefer the named operator methods below when the operator is one of them |
