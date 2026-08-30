@@ -2,9 +2,14 @@
 
 #include <iron_query/expr.hpp>
 #include <iron_query/operator_precedence.hpp>
+#include <memory>
 #include <string>
 
 namespace iron_query {
+
+namespace impl {
+struct Node;
+} // namespace impl
 
 /// @brief A boolean-valued SQL predicate, e.g. the result of a comparison,
 /// `LIKE`/`IN`/`BETWEEN`/`IS [NOT] NULL`, `EXISTS`, or a logical combination
@@ -43,7 +48,7 @@ public:
   /// @brief Converts this predicate into a value expression, e.g. for
   /// embedding it where a boolean-valued Expr is expected. Only available on
   /// rvalues.
-  operator Expr() const &&;
+  operator Expr() &&;
 
 private:
   friend class Expr;
@@ -55,9 +60,9 @@ private:
   friend Condition operator!=(const Expr &a, const Expr &b);
 
   Condition(std::string s, OperatorPrecedence precedence);
+  explicit Condition(std::shared_ptr<const impl::Node> node);
 
-  std::string expr_;
-  OperatorPrecedence precedence_;
+  std::shared_ptr<const impl::Node> node_;
 };
 
 } // namespace iron_query

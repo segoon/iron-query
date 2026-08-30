@@ -5,6 +5,7 @@
 #include <iron_query/order_by.hpp>
 #include <iron_query/select_item.hpp>
 #include <iron_query/virtual_table.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -104,15 +105,15 @@ private:
   void EnsureValid() const;
 
   bool distinct_{false};
-  std::vector<std::string> distinct_on_;
+  std::optional<std::vector<Expr>> distinct_on_;
   std::string from_;
-  std::vector<std::string> select_;
-  std::string where_;
-  std::vector<std::string> group_by_;
-  std::string having_;
-  std::vector<std::string> order_by_;
-  std::string limit_;
-  std::string offset_;
+  std::optional<std::vector<SelectItem>> select_;
+  std::optional<Condition> where_;
+  std::optional<std::vector<Expr>> group_by_;
+  std::optional<Condition> having_;
+  std::optional<std::vector<OrderByTerm>> order_by_;
+  std::optional<int> limit_;
+  std::optional<int> offset_;
 };
 
 /// @brief Handy fabric for @ref SelectExpr

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,11 +27,18 @@ std::string IndentBlock(const std::string &text, int spaces);
 std::string RenderBinary(const std::string &lhs, const char *op,
                          const std::string &rhs);
 
-/// @brief Throws if `field` (a clause's storage, either a `std::string` or a
-/// `std::vector<std::string>`) was already set, so a builder method can
-/// reject a second call instead of silently discarding the first one.
+/// @brief Whether a clause's storage holds no value yet: `.empty()` for a
+/// `std::string`/`std::vector`, `.has_value()` for a `std::optional`.
+template <typename T> bool IsEmpty(const T &field) { return field.empty(); }
+template <typename T> bool IsEmpty(const std::optional<T> &field) {
+  return !field.has_value();
+}
+
+/// @brief Throws if `field` (a clause's storage) was already set, so a
+/// builder method can reject a second call instead of silently discarding
+/// the first one.
 template <typename T> void EnsureNotSet(const T &field, const char *what) {
-  if (!field.empty())
+  if (!IsEmpty(field))
     throw LogicError(std::string(what) + " is already set");
 }
 
@@ -53,6 +61,18 @@ std::string RenderTerm(const OrderByTerm &term);
 // one-term and many-term setters cannot disagree on replace-vs-append.
 template <typename T>
 std::vector<std::string> RenderAll(std::initializer_list<T> terms) {
+  std::vector<std::string> rendered;
+  rendered.reserve(terms.size());
+  for (const auto &term : terms)
+    rendered.push_back(RenderTerm(term));
+  return rendered;
+}
+
+/// @brief `RenderAll`, for a clause stored as a live `std::vector<T>` rather
+/// than an `std::initializer_list<T>` (used by clauses that defer rendering
+/// until the final `ToString()`/`ToStringFormatted()` call).
+template <typename T>
+std::vector<std::string> RenderAll(const std::vector<T> &terms) {
   std::vector<std::string> rendered;
   rendered.reserve(terms.size());
   for (const auto &term : terms)
