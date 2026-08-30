@@ -3,6 +3,8 @@
 This is a SQL query builder for C++.
 Note: this is NOT an ORM!
 
+[![docs](https://img.shields.io/badge/docs-online-blue)](https://segoon.github.io/sql-builder/)
+
 Licensed under the [Apache License 2.0](LICENSE).
 
 # Do I need IronQuery?
@@ -141,4 +143,5 @@ Building/testing/linting the project needs, depending on the `make` target used:
 # Documentation
 
 Run `make docs` to generate the API reference from the doxygen comments in `include/`;
-open `build/docs/html/index.html` to view it.
+open `build/docs/html/index.html` to view it. The latest copy from `main` is also
+published at https://segoon.github.io/sql-builder/.
