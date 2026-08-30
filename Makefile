@@ -21,6 +21,7 @@ sanitize:
 
 .PHONY: docs
 docs:
+	mkdir -p build/docs
 	doxygen Doxyfile
 
 .PHONY: clean
