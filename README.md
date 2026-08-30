@@ -32,10 +32,10 @@ Answer the following questions:
 
 # Architectual decisions
 
-1) This is a plain C++ -> SQL mapping builder;
-2) This is NOT an ORM;
+1) This is a plain C++ -> SQL mapping builder; no execution layer.
+2) This is NOT an ORM.
 3) The main idea behind this is a possibility to avoid typical
-   syntax mistakes/typos in SQL query typing;
+   syntax mistakes/typos in SQL query typing.
 4) The builder DOES NOT check for identifier definition,
    expression data types, member names, etc.
 5) The builder DOES NOT check for missed required clause.
