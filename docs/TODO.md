@@ -10,3 +10,6 @@
 - userver's json::Value -> iq::Expr?
 - IndentBlock() seems slow
 - use Expr::BinaryOp() in .cpp to remove code duplication
+- more context in exception messages
+- userver sql2dto
+- dialect abstraction

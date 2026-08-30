@@ -178,17 +178,27 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P2 — makes the schema-safety promise real**
 
-7. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
+7. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
+   compile error rather than a convention. Ranked first: it's the headline feature of
+   jOOQ, Go's `ent`, and `sqlc` alike — three independent ecosystems treat "derive
+   types from the real schema" as the actual reason to adopt a builder over raw SQL,
+   not a nice-to-have.
+8. A parameter-binding container that ties `_1.._10` placeholders to supplied values
+   and lifts the hard cap of 10. Every researched competitor (SQLAlchemy, sqlx,
+   squirrel, jOOQ) treats this as a solved baseline rather than a differentiator, which
+   is itself the signal: its absence here is a gap, not a design choice.
+9. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
    `Cast`), or drop them.
-8. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
-   compile error rather than a convention.
 
 **P3 — breadth**
 
-9. Window functions.
-10. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
-11. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
-12. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
+10. Window functions.
+11. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
+12. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
+13. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
+    Lowest priority even among P3: no competitor researched (C++, Python, Java, Go)
+    treats cross-dialect portability as a core draw — jOOQ gates multi-dialect support
+    behind its commercial tier rather than shipping it as the open-source pitch.
 
 **Explicitly out of scope** (worth writing into `docs/VISION.md`): DDL, transaction
 control, `EXPLAIN`, `COPY`, permissions, and anything an ORM would do (mapping rows to
