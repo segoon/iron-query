@@ -2,7 +2,7 @@
 # Unlisted settings fall back to Doxygen's built-in defaults.
 
 PROJECT_NAME           = "IronQuery"
-PROJECT_BRIEF          = "A header-only SQL query builder for C++"
+PROJECT_BRIEF          = "A SQL-first query builder for C++"
 
 INPUT                  = include README.md
 USE_MDFILE_AS_MAINPAGE = README.md
