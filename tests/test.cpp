@@ -753,6 +753,51 @@ TEST(With, DottedNameAllowed) {
             "WITH my_schema.cte AS (SELECT a FROM foo) SELECT * FROM foo");
 }
 
+TEST(WithFormatted, Single) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(With("cte", From(tbl).Select(Expr::FromRaw("a")))
+                .Main(From(Table::FromRaw("cte")).Select(Expr::FromRaw("*")))
+                .ToStringFormatted(),
+            "WITH\n"
+            "    cte AS (\n"
+            "        SELECT\n"
+            "            a\n"
+            "        FROM\n"
+            "            foo\n"
+            "    )\n"
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    cte");
+}
+
+TEST(WithFormatted, Chained) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_EQ(With("a", From(tbl).Select(Expr::FromRaw("x")))
+                .With("b", From(tbl).Select(Expr::FromRaw("y")))
+                .Main(From(Table::FromRaw("a")).Select(Expr::FromRaw("*")))
+                .ToStringFormatted(),
+            "WITH\n"
+            "    a AS (\n"
+            "        SELECT\n"
+            "            x\n"
+            "        FROM\n"
+            "            foo\n"
+            "    ),\n"
+            "    b AS (\n"
+            "        SELECT\n"
+            "            y\n"
+            "        FROM\n"
+            "            foo\n"
+            "    )\n"
+            "SELECT\n"
+            "    *\n"
+            "FROM\n"
+            "    a");
+}
+
 TEST(Join, SelectSelect) {
   Table tbl = Table::FromRaw("foo");
 

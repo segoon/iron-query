@@ -1,2 +1,1 @@
 - example with raw libpq (?)
-- pretty formatting with CTEs

@@ -15,6 +15,10 @@ namespace iron_query::impl {
 /// @brief Joins already-rendered terms with ", ".
 std::string JoinCsv(const std::vector<std::string> &items);
 
+/// @brief Indents every line of `text` by `spaces` spaces, for splicing a
+/// pre-rendered multi-line block under a clause header.
+std::string IndentBlock(const std::string &text, int spaces);
+
 /// @brief Throws if `field` (a clause's storage, either a `std::string` or a
 /// `std::vector<std::string>`) was already set, so a builder method can
 /// reject a second call instead of silently discarding the first one.
