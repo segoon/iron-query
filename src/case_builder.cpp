@@ -15,7 +15,15 @@ CaseBuilder CaseBuilder::When(Condition cond) && {
 CaseBuilder CaseBuilder::Then(Expr result) && {
   if (!has_pending_when_)
     throw LogicError("Then() called without a preceding When()");
-  whens_ += "WHEN " + pending_when_ + " THEN " + result.ToString() + " ";
+  const auto result_str = result.ToString();
+  std::string fragment;
+  fragment.reserve(5 + pending_when_.size() + 7 + result_str.size() + 1);
+  fragment += "WHEN ";
+  fragment += pending_when_;
+  fragment += " THEN ";
+  fragment += result_str;
+  fragment += ' ';
+  whens_ += fragment;
   has_pending_when_ = false;
   return std::move(*this);
 }

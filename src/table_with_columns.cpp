@@ -10,7 +10,8 @@ namespace iron_query {
 TableWithColumns::TableWithColumns(std::string name,
                                    std::vector<Column> columns,
                                    std::string alias)
-    : Table(std::move(name)), columns_(columns), alias_(std::move(alias)) {}
+    : Table(std::move(name)), columns_(std::move(columns)),
+      alias_(std::move(alias)) {}
 
 TableWithColumns::TableWithColumns(std::string name,
                                    std::initializer_list<Column> columns)
@@ -29,6 +30,12 @@ TableWithColumns::FromRaw(std::string name,
 
 Expr TableWithColumns::SelectArgAll() const {
   std::string s;
+  if (!columns_.empty()) {
+    std::size_t size = 2 * (columns_.size() - 1);
+    for (const auto &col : columns_)
+      size += col.name.size();
+    s.reserve(size);
+  }
   for (const auto &col : columns_) {
     if (!s.empty())
       s += ", ";

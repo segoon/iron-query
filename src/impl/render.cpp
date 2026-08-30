@@ -1,9 +1,19 @@
 #include "render.hpp"
+#include <algorithm>
+#include <cstring>
 
 namespace iron_query::impl {
 
 std::string JoinCsv(const std::vector<std::string> &items) {
   std::string s;
+  if (items.empty())
+    return s;
+
+  std::size_t size = 2 * (items.size() - 1);
+  for (const auto &item : items)
+    size += item.size();
+  s.reserve(size);
+
   for (const auto &item : items) {
     if (!s.empty())
       s += ", ";
@@ -14,7 +24,11 @@ std::string JoinCsv(const std::vector<std::string> &items) {
 
 std::string IndentBlock(const std::string &text, int spaces) {
   const std::string prefix(spaces, ' ');
-  std::string s = prefix;
+  const auto newlines = std::count(text.begin(), text.end(), '\n');
+  std::string s;
+  s.reserve(prefix.size() + text.size() +
+            static_cast<std::size_t>(newlines) * prefix.size());
+  s += prefix;
   for (char c : text) {
     s += c;
     if (c == '\n')
@@ -25,7 +39,15 @@ std::string IndentBlock(const std::string &text, int spaces) {
 
 std::string RenderBinary(const std::string &lhs, const char *op,
                          const std::string &rhs) {
-  return lhs + " " + op + " " + rhs;
+  const auto op_len = std::strlen(op);
+  std::string s;
+  s.reserve(lhs.size() + rhs.size() + op_len + 2);
+  s += lhs;
+  s += ' ';
+  s.append(op, op_len);
+  s += ' ';
+  s += rhs;
+  return s;
 }
 
 std::string RenderTerm(const Expr &exp) { return exp.ToString(); }

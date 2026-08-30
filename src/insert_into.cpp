@@ -83,7 +83,7 @@ InsertInto InsertInto::OnConflictDoUpdate(
   for (const auto &[column, value] : assignments) {
     if (!set.empty())
       set += ", ";
-    set += column.ToString() + " = " + value.ToString();
+    set += impl::RenderBinary(column.ToString(), "=", value.ToString());
   }
   on_conflict_ = "ON CONFLICT (" + impl::JoinCsv(impl::RenderAll(target_cols)) +
                  ") DO UPDATE SET " + set;

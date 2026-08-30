@@ -1,8 +1,9 @@
 #include "impl/identifier.hpp"
-#include "impl/render.hpp"
+#include "impl/node.hpp"
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <cstring>
 #include <iron_query/collation.hpp>
 #include <iron_query/condition.hpp>
 #include <iron_query/exception.hpp>
@@ -10,15 +11,18 @@
 #include <iron_query/select_item.hpp>
 #include <iron_query/virtual_table.hpp>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace iron_query {
 
 Expr::Expr(std::string s)
-    : expr_(std::move(s)), precedence_(OperatorPrecedence::kSymbol) {}
+    : node_(impl::MakeLeaf(std::move(s), OperatorPrecedence::kSymbol)) {}
 
 Expr::Expr(std::string expr, OperatorPrecedence precedence)
-    : expr_(std::move(expr)), precedence_(precedence) {}
+    : node_(impl::MakeLeaf(std::move(expr), precedence)) {}
+
+Expr::Expr(std::shared_ptr<const impl::Node> node) : node_(std::move(node)) {}
 
 Expr Expr::FromInteger(long long value) { return Expr(std::to_string(value)); }
 
@@ -57,13 +61,15 @@ Expr Expr::Literal(const std::string &value) {
   if (value.find('\0') != std::string::npos)
     throw InvalidLiteral("string literal must not contain NUL bytes");
 
-  std::string escaped = "'";
+  std::string escaped;
+  escaped.reserve(value.size() + 2);
+  escaped += '\'';
   for (char c : value) {
     if (c == '\'')
       escaped += '\'';
     escaped += c;
   }
-  escaped += "'";
+  escaped += '\'';
   return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
 }
 
@@ -71,13 +77,15 @@ Expr Expr::Ident(const std::string &name) {
   if (name.find('\0') != std::string::npos)
     throw InvalidIdentifier("<identifier containing a NUL byte>");
 
-  std::string escaped = "\"";
+  std::string escaped;
+  escaped.reserve(name.size() + 2);
+  escaped += '"';
   for (char c : name) {
     if (c == '"')
       escaped += '"';
     escaped += c;
   }
-  escaped += "\"";
+  escaped += '"';
   return Expr(std::move(escaped), OperatorPrecedence::kSymbol);
 }
 
@@ -96,32 +104,35 @@ void EnsureNonEmptyArgs(std::initializer_list<Expr> args, const char *name) {
     throw InvalidArgument(std::string(name) + "() needs at least one argument");
 }
 
-std::string RenderCall(const std::string &name, const char *args_prefix,
-                       std::initializer_list<Expr> args) {
-  auto s = name + "(" + args_prefix;
+} // namespace
+
+std::shared_ptr<const impl::Node>
+Expr::BuildCallNode(const std::string &name, const char *args_prefix,
+                    std::initializer_list<Expr> args) {
+  std::vector<impl::Part> parts;
+  parts.reserve(args.size() * 2 + 1);
+  parts.emplace_back(name + "(" + args_prefix);
   bool first = true;
   for (const auto &arg : args) {
     if (!first)
-      s += ", ";
-    s += arg.ToString();
+      parts.emplace_back(std::string(", "));
+    parts.emplace_back(impl::ChildRef{arg.node_, OperatorPrecedence::kExtract});
     first = false;
   }
-  s += ")";
-  return s;
+  parts.emplace_back(std::string(")"));
+  return impl::MakeNode(OperatorPrecedence::kSymbol, std::move(parts));
 }
-
-} // namespace
 
 Expr Expr::Call(const std::string &name, std::initializer_list<Expr> args) {
   impl::ValidateIdentifier(name);
-  return Expr(RenderCall(name, "", args), OperatorPrecedence::kSymbol);
+  return Expr(BuildCallNode(name, "", args));
 }
 
 Expr Expr::CallDistinct(const std::string &name,
                         std::initializer_list<Expr> args) {
   impl::ValidateIdentifier(name);
   EnsureNonEmptyArgs(args, name.c_str());
-  return Expr(RenderCall(name, "DISTINCT ", args), OperatorPrecedence::kSymbol);
+  return Expr(BuildCallNode(name, "DISTINCT ", args));
 }
 
 Expr Expr::Coalesce(std::initializer_list<Expr> args) {
@@ -156,7 +167,8 @@ Condition Expr::NotExists(const VirtualTable &subquery) {
 Expr Expr::PrefixOp(const std::string &op, const Expr &operand,
                     OperatorPrecedence precedence) {
   impl::ValidateOperatorName(op);
-  return Expr(op + " " + operand.Extract(precedence), precedence);
+  return Expr(impl::MakeNode(
+      precedence, {op + " ", impl::ChildRef{operand.node_, precedence}}));
 }
 
 Expr Expr::Count(const Expr &arg) { return Call("COUNT", {arg}); }
@@ -176,27 +188,33 @@ Expr Expr::Min(const Expr &arg) { return Call("MIN", {arg}); }
 Expr Expr::Max(const Expr &arg) { return Call("MAX", {arg}); }
 
 Expr Expr::Dot(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kDot) + "." +
-                  other.Extract(OperatorPrecedence::kDot),
-              OperatorPrecedence::kDot);
+  return Expr(impl::MakeNode(
+      OperatorPrecedence::kDot,
+      {impl::ChildRef{node_, OperatorPrecedence::kDot}, std::string("."),
+       impl::ChildRef{other.node_, OperatorPrecedence::kDot}}));
 }
 
 Expr Expr::CastRaw(const std::string &type) const {
-  return Expr("CAST (" + Extract(OperatorPrecedence::kTypecast) + " AS " +
-                  type + ")",
-              OperatorPrecedence::kTypecast);
+  return Expr(
+      impl::MakeNode(OperatorPrecedence::kTypecast,
+                     {std::string("CAST ("),
+                      impl::ChildRef{node_, OperatorPrecedence::kTypecast},
+                      " AS " + type + ")"}));
 }
 
 Expr Expr::Collate(const Collation &collation) const {
-  return Expr(Extract(OperatorPrecedence::kCollate) + " COLLATE " +
-                  collation.ToString(),
-              OperatorPrecedence::kCollate);
+  return Expr(
+      impl::MakeNode(OperatorPrecedence::kCollate,
+                     {impl::ChildRef{node_, OperatorPrecedence::kCollate},
+                      " COLLATE " + collation.ToString()}));
 }
 
 Expr Expr::operator[](const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kIndex) + "[" + other.ToString() +
-                  "]",
-              OperatorPrecedence::kIndex);
+  return Expr(impl::MakeNode(
+      OperatorPrecedence::kIndex,
+      {impl::ChildRef{node_, OperatorPrecedence::kIndex}, std::string("["),
+       impl::ChildRef{other.node_, OperatorPrecedence::kExtract},
+       std::string("]")}));
 }
 
 Expr Expr::operator^(const Expr &other) const {
@@ -206,163 +224,203 @@ Expr Expr::operator^(const Expr &other) const {
 Expr Expr::BinaryOp(const std::string &op, const Expr &other,
                     OperatorPrecedence precedence) const {
   impl::ValidateOperatorName(op);
-  return Expr(impl::RenderBinary(Extract(precedence), op.c_str(),
-                                 other.Extract(precedence)),
-              precedence);
+  return Expr(impl::MakeNode(precedence,
+                             {impl::ChildRef{node_, precedence}, " " + op + " ",
+                              impl::ChildRef{other.node_, precedence}}));
 }
 
 Condition Expr::Between(const Expr &a, const Expr &b) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " BETWEEN " +
-                       a.Extract(OperatorPrecedence::kBetween) + " AND " +
-                       b.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" BETWEEN "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween},
+                      std::string(" AND "),
+                      impl::ChildRef{b.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::NotBetween(const Expr &a, const Expr &b) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT BETWEEN " +
-                       a.Extract(OperatorPrecedence::kBetween) + " AND " +
-                       b.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" NOT BETWEEN "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween},
+                      std::string(" AND "),
+                      impl::ChildRef{b.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::Like(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " LIKE " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" LIKE "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::NotLike(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT LIKE " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" NOT LIKE "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::ILike(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " ILIKE " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" ILIKE "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::NotILike(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT ILIKE " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" NOT ILIKE "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::SimilarTo(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " SIMILAR TO " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" SIMILAR TO "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
 Condition Expr::NotSimilarTo(const Expr &a) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT SIMILAR TO " +
-                       a.Extract(OperatorPrecedence::kBetween),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      std::string(" NOT SIMILAR TO "),
+                      impl::ChildRef{a.node_, OperatorPrecedence::kBetween}}));
 }
 
-namespace {
-
 // The right-hand side of IN/ANY/ALL is always parenthesized by the grammar
-// itself, so it is built here rather than via Extract().
-std::string RenderValueList(std::initializer_list<Expr> values) {
+// itself, so its elements are embedded at kExtract (never separately
+// bracketed) rather than via the outer BETWEEN-level context.
+std::shared_ptr<const impl::Node>
+Expr::BuildInListNode(const Expr &self, const char *connector,
+                      std::initializer_list<Expr> values) {
   if (values.size() == 0)
     throw InvalidArgument("IN () needs at least one value");
 
-  std::vector<std::string> rendered;
-  rendered.reserve(values.size());
-  for (const auto &value : values)
-    rendered.push_back(value.ToString());
-  return "(" + impl::JoinCsv(rendered) + ")";
+  std::vector<impl::Part> parts{
+      impl::ChildRef{self.node_, OperatorPrecedence::kBetween},
+      std::string(connector), std::string("(")};
+  bool first = true;
+  for (const auto &value : values) {
+    if (!first)
+      parts.emplace_back(std::string(", "));
+    parts.emplace_back(
+        impl::ChildRef{value.node_, OperatorPrecedence::kExtract});
+    first = false;
+  }
+  parts.emplace_back(std::string(")"));
+  return impl::MakeNode(OperatorPrecedence::kBetween, std::move(parts));
 }
 
-} // namespace
-
 Condition Expr::In(std::initializer_list<Expr> values) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " IN " +
-                       RenderValueList(values),
-                   OperatorPrecedence::kBetween);
+  return Condition(BuildInListNode(*this, " IN ", values));
 }
 
 Condition Expr::In(const VirtualTable &subquery) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " IN " +
-                       subquery.ToStringBracketed(),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      " IN " + subquery.ToStringBracketed()}));
 }
 
 Condition Expr::NotIn(std::initializer_list<Expr> values) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
-                       RenderValueList(values),
-                   OperatorPrecedence::kBetween);
+  return Condition(BuildInListNode(*this, " NOT IN ", values));
 }
 
 Condition Expr::NotIn(const VirtualTable &subquery) const {
-  return Condition(Extract(OperatorPrecedence::kBetween) + " NOT IN " +
-                       subquery.ToStringBracketed(),
-                   OperatorPrecedence::kBetween);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kBetween,
+                     {impl::ChildRef{node_, OperatorPrecedence::kBetween},
+                      " NOT IN " + subquery.ToStringBracketed()}));
 }
 
 Condition Expr::EqAny(const Expr &array) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " = ANY (" +
-                       array.ToString() + ")",
-                   OperatorPrecedence::kCompare);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kCompare,
+                     {impl::ChildRef{node_, OperatorPrecedence::kCompare},
+                      std::string(" = ANY ("),
+                      impl::ChildRef{array.node_, OperatorPrecedence::kExtract},
+                      std::string(")")}));
 }
 
 Condition Expr::EqAny(const VirtualTable &subquery) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " = ANY " +
-                       subquery.ToStringBracketed(),
-                   OperatorPrecedence::kCompare);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kCompare,
+                     {impl::ChildRef{node_, OperatorPrecedence::kCompare},
+                      " = ANY " + subquery.ToStringBracketed()}));
 }
 
 Condition Expr::NeAll(const Expr &array) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " <> ALL (" +
-                       array.ToString() + ")",
-                   OperatorPrecedence::kCompare);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kCompare,
+                     {impl::ChildRef{node_, OperatorPrecedence::kCompare},
+                      std::string(" <> ALL ("),
+                      impl::ChildRef{array.node_, OperatorPrecedence::kExtract},
+                      std::string(")")}));
 }
 
 Condition Expr::NeAll(const VirtualTable &subquery) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " <> ALL " +
-                       subquery.ToStringBracketed(),
-                   OperatorPrecedence::kCompare);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kCompare,
+                     {impl::ChildRef{node_, OperatorPrecedence::kCompare},
+                      " <> ALL " + subquery.ToStringBracketed()}));
 }
 
 Condition Expr::IsTrue() const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS TRUE",
-                   OperatorPrecedence::kIs);
+  return Condition(impl::MakeNode(
+      OperatorPrecedence::kIs, {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                                std::string(" IS TRUE")}));
 }
 
 Condition Expr::IsFalse() const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS FALSE",
-                   OperatorPrecedence::kIs);
+  return Condition(impl::MakeNode(
+      OperatorPrecedence::kIs, {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                                std::string(" IS FALSE")}));
 }
 
 Condition Expr::IsNull() const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS NULL",
-                   OperatorPrecedence::kIs);
+  return Condition(impl::MakeNode(
+      OperatorPrecedence::kIs, {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                                std::string(" IS NULL")}));
 }
 
 Condition Expr::IsNotNull() const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT NULL",
-                   OperatorPrecedence::kIs);
+  return Condition(impl::MakeNode(
+      OperatorPrecedence::kIs, {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                                std::string(" IS NOT NULL")}));
 }
 
 Condition Expr::IsDistinctFrom(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS DISTINCT FROM " +
-                       other.Extract(OperatorPrecedence::kIs),
-                   OperatorPrecedence::kIs);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kIs,
+                     {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                      std::string(" IS DISTINCT FROM "),
+                      impl::ChildRef{other.node_, OperatorPrecedence::kIs}}));
 }
 
 Condition Expr::IsNotDistinctFrom(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kIs) + " IS NOT DISTINCT FROM " +
-                       other.Extract(OperatorPrecedence::kIs),
-                   OperatorPrecedence::kIs);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kIs,
+                     {impl::ChildRef{node_, OperatorPrecedence::kIs},
+                      std::string(" IS NOT DISTINCT FROM "),
+                      impl::ChildRef{other.node_, OperatorPrecedence::kIs}}));
 }
 
 Condition Expr::CompareOp(const Expr &a, const char *op, const Expr &b) {
-  return Condition(impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                                      op,
-                                      b.Extract(OperatorPrecedence::kCompare)),
-                   OperatorPrecedence::kCompare);
+  return Condition(
+      impl::MakeNode(OperatorPrecedence::kCompare,
+                     {impl::ChildRef{a.node_, OperatorPrecedence::kCompare},
+                      std::string(" ") + op + " ",
+                      impl::ChildRef{b.node_, OperatorPrecedence::kCompare}}));
 }
 
 Condition operator<(const Expr &a, const Expr &b) {
@@ -410,13 +468,16 @@ Expr Expr::operator%(const Expr &other) const {
 }
 
 Expr Expr::operator-() const {
-  return Expr("-" + Extract(OperatorPrecedence::kUnaryPlus),
-              OperatorPrecedence::kUnaryPlus);
+  return Expr(
+      impl::MakeNode(OperatorPrecedence::kUnaryPlus,
+                     {std::string("-"),
+                      impl::ChildRef{node_, OperatorPrecedence::kUnaryPlus}}));
 }
 
 Expr Expr::operator!() const {
-  return Expr("NOT " + Extract(OperatorPrecedence::kNot),
-              OperatorPrecedence::kNot);
+  return Expr(impl::MakeNode(
+      OperatorPrecedence::kNot,
+      {std::string("NOT "), impl::ChildRef{node_, OperatorPrecedence::kNot}}));
 }
 
 Expr Expr::Concat(const Expr &other) const {
@@ -431,13 +492,9 @@ SelectItem Expr::As(std::string_view name) const {
 }
 
 std::string Expr::Extract(OperatorPrecedence precedence) const {
-  if (precedence_ >= precedence)
-    return "(" + expr_ + ")";
-  return expr_;
+  return impl::RenderWithContext(*node_, precedence);
 }
 
-std::string Expr::ToString() const {
-  return Extract(OperatorPrecedence::kExtract);
-}
+std::string Expr::ToString() const { return impl::Render(*node_); }
 
 } // namespace iron_query

@@ -2,6 +2,7 @@
 
 #include <initializer_list>
 #include <iron_query/operator_precedence.hpp>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -12,6 +13,10 @@ class VirtualTable;
 class Condition;
 class Collation;
 class SelectItem;
+
+namespace impl {
+struct Node;
+} // namespace impl
 
 namespace impl {
 
@@ -356,6 +361,7 @@ private:
 
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
+  explicit Expr(std::shared_ptr<const impl::Node> node);
 
   static Expr FromInteger(long long value);
   static Expr FromInteger(unsigned long long value);
@@ -363,8 +369,14 @@ private:
 
   static Condition CompareOp(const Expr &a, const char *op, const Expr &b);
 
-  std::string expr_;
-  OperatorPrecedence precedence_;
+  static std::shared_ptr<const impl::Node>
+  BuildCallNode(const std::string &name, const char *args_prefix,
+                std::initializer_list<Expr> args);
+  static std::shared_ptr<const impl::Node>
+  BuildInListNode(const Expr &self, const char *connector,
+                  std::initializer_list<Expr> values);
+
+  std::shared_ptr<const impl::Node> node_;
 };
 
 /// @brief `a < b`.
