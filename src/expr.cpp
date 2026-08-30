@@ -358,46 +358,35 @@ Condition Expr::IsNotDistinctFrom(const Expr &other) const {
                    OperatorPrecedence::kIs);
 }
 
-Condition operator<(const Expr &a, const Expr &b) {
+Condition Expr::CompareOp(const Expr &a, const char *op, const Expr &b) {
   return Condition(impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                                      "<",
+                                      op,
                                       b.Extract(OperatorPrecedence::kCompare)),
                    OperatorPrecedence::kCompare);
+}
+
+Condition operator<(const Expr &a, const Expr &b) {
+  return Expr::CompareOp(a, "<", b);
 }
 
 Condition operator<=(const Expr &a, const Expr &b) {
-  return Condition(
-      impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                         "<=", b.Extract(OperatorPrecedence::kCompare)),
-      OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "<=", b);
 }
 
 Condition operator>(const Expr &a, const Expr &b) {
-  return Condition(impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                                      ">",
-                                      b.Extract(OperatorPrecedence::kCompare)),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, ">", b);
 }
 
 Condition operator>=(const Expr &a, const Expr &b) {
-  return Condition(
-      impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                         ">=", b.Extract(OperatorPrecedence::kCompare)),
-      OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, ">=", b);
 }
 
 Condition operator==(const Expr &a, const Expr &b) {
-  return Condition(impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                                      "=",
-                                      b.Extract(OperatorPrecedence::kCompare)),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "=", b);
 }
 
 Condition operator!=(const Expr &a, const Expr &b) {
-  return Condition(
-      impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
-                         "!=", b.Extract(OperatorPrecedence::kCompare)),
-      OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "!=", b);
 }
 
 Expr Expr::operator+(const Expr &other) const {

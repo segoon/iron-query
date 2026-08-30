@@ -347,6 +347,12 @@ public:
 
 private:
   friend class Condition;
+  friend Condition operator<(const Expr &a, const Expr &b);
+  friend Condition operator<=(const Expr &a, const Expr &b);
+  friend Condition operator>(const Expr &a, const Expr &b);
+  friend Condition operator>=(const Expr &a, const Expr &b);
+  friend Condition operator==(const Expr &a, const Expr &b);
+  friend Condition operator!=(const Expr &a, const Expr &b);
 
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
@@ -354,6 +360,8 @@ private:
   static Expr FromInteger(long long value);
   static Expr FromInteger(unsigned long long value);
   static Expr FromDouble(double value);
+
+  static Condition CompareOp(const Expr &a, const char *op, const Expr &b);
 
   std::string expr_;
   OperatorPrecedence precedence_;
