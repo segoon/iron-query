@@ -11,6 +11,7 @@ namespace iron_query {
 /// with @ref Expr::As. Kept distinct from @ref Expr because `x AS y` is legal
 /// nowhere else, so `Where(x.As("y"))` or `Expr::Call("ABS", {x.As("y")})` do
 /// not compile.
+/// @ingroup expressions
 class [[nodiscard]] SelectItem final {
 public:
   /// @brief Implicitly wraps anything an @ref Expr can be built from, e.g. an

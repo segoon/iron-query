@@ -21,6 +21,7 @@ namespace iron_query::userver {
 ///
 /// @note Values for `_1`..`_10` placeholders are still the caller's
 /// responsibility, exactly as with a bare `ToString()` call.
+/// @ingroup misc
 template <typename Builder>
 ::storages::Query ToQuery(
     const Builder &builder, ::storages::Query::Name name,

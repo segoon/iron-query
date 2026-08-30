@@ -10,6 +10,7 @@ class Table;
 
 /// @brief Any table value, including physical table, table result,
 /// materialized view, etc.
+/// @ingroup schema
 class [[nodiscard]] VirtualTable {
 public:
   /// @brief Renders this table value as single-line SQL text. See also @ref
@@ -30,13 +31,13 @@ public:
   /// @brief Renders this table value as a FROM item. Distinct from @ref
   /// ToStringBracketed because PostgreSQL's `table_ref` grammar accepts a bare
   /// join but parenthesizes one only when an alias follows.
-  /// @throws std::logic_error for table values that PostgreSQL requires an
+  /// @throws LogicError for table values that PostgreSQL requires an
   /// alias for, i.e. every subquery; call @ref As first.
   virtual std::string ToStringAsFromItem() const;
 
   /// @brief Aliases this table value as `this AS name`, usable as a FROM
   /// source. `name` must be a valid (optionally dotted) SQL identifier.
-  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @throws InvalidIdentifier if `name` is not a valid identifier.
   Table As(std::string_view name) const;
 
   /// @brief Converts this table value into a subquery expression, e.g. for

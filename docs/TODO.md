@@ -1,12 +1,7 @@
-- example with raw libpq (?)
-- for doxygen: group types into statements, expressions, etc.
-- fix list items from readme in doxygen 
-- exception class
 - user-friendly readme: getting started, examples links, alternatives, development
 - generate table vars from actual DB
 - Table::FromRaw(), TableWithColumns::FromRaw() - simplify; FromRaw() -> FromUnsafeStr()
-- WithQuery - unsafe?
-- links to PG docs in doxygen class docs
 - userver's json::Value -> iq::Expr?
 - IndentBlock() seems slow
-- use Expr::BinaryOp() in .cpp to remove code duplication
+- userver sql2dto
+- dialect abstraction

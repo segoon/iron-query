@@ -3,11 +3,14 @@
 This is a SQL query builder for C++.
 Note: this is NOT an ORM!
 
+[![docs](https://img.shields.io/badge/docs-online-blue)](https://segoon.github.io/sql-builder/)
+
 Licensed under the [Apache License 2.0](LICENSE).
 
 # Do I need IronQuery?
 
 Answer the following questions:
+
 1) Are your queries structure defined in runtime (e.g. optional `LIMIT`/`WHERE` or dynamic `WHERE` clause)?
 2) Do you want to keep yourself distant from SQL?
 3) Is the query performance critical?
@@ -32,15 +35,16 @@ Answer the following questions:
 
 # Architectual decisions
 
-1) This is a plain C++ -> SQL mapping builder;
-2) This is NOT an ORM;
+1) This is a plain C++ -> SQL mapping builder; no execution layer.
+2) This is NOT an ORM.
 3) The main idea behind this is a possibility to avoid typical
-   syntax mistakes/typos in SQL query typing;
+   syntax mistakes/typos in SQL query typing.
 4) The builder DOES NOT check for identifier definition,
    expression data types, member names, etc.
 5) The builder DOES NOT check for missed required clause.
 
 The benefits of using the builder:
+
 1) Dynamically build complex WHERE clauses with something
    better than raw strings concatenation;
 2) Automatically use full set of table column names after schema migration;
@@ -139,4 +143,5 @@ Building/testing/linting the project needs, depending on the `make` target used:
 # Documentation
 
 Run `make docs` to generate the API reference from the doxygen comments in `include/`;
-open `build/docs/html/index.html` to view it.
+open `build/docs/html/index.html` to view it. The latest copy from `main` is also
+published at https://segoon.github.io/sql-builder/.

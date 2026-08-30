@@ -1,6 +1,6 @@
 #include "impl/render.hpp"
+#include <iron_query/exception.hpp>
 #include <iron_query/insert_into.hpp>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -19,9 +19,9 @@ void EnsureSameArity(const std::vector<std::string> &columns,
     return;
   for (const auto &row : rows) {
     if (row.size() != columns.size())
-      throw std::logic_error("iron_query: " + std::to_string(columns.size()) +
-                             " columns but a row with " +
-                             std::to_string(row.size()) + " values");
+      throw LogicError(std::to_string(columns.size()) +
+                       " columns but a row with " + std::to_string(row.size()) +
+                       " values");
   }
 }
 
@@ -76,8 +76,8 @@ InsertInto InsertInto::OnConflictDoUpdate(
     std::initializer_list<Expr> target_cols,
     std::initializer_list<std::pair<Expr, Expr>> assignments) && {
   if (assignments.size() == 0)
-    throw std::invalid_argument(
-        "iron_query: ON CONFLICT DO UPDATE needs at least one assignment");
+    throw InvalidArgument(
+        "ON CONFLICT DO UPDATE needs at least one assignment");
 
   std::string set;
   for (const auto &[column, value] : assignments) {
@@ -92,9 +92,9 @@ InsertInto InsertInto::OnConflictDoUpdate(
 
 std::string InsertInto::ToString() const {
   if (columns_.empty())
-    throw std::logic_error("iron_query: no columns to insert into");
+    throw LogicError("no columns to insert into");
   if (rows_.empty())
-    throw std::logic_error("iron_query: no values to insert");
+    throw LogicError("no values to insert");
   EnsureSameArity(columns_, rows_);
 
   std::string s =

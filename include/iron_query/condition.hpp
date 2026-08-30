@@ -16,6 +16,7 @@ namespace iron_query {
 /// explicitly via @ref Expr::IsTrue / @ref Expr::IsFalse / @ref
 /// Expr::IsNotNull, or via @ref Condition::FromRaw for a trusted raw
 /// fragment.
+/// @ingroup expressions
 class [[nodiscard]] Condition final {
 public:
   /// @brief `this AND other`.

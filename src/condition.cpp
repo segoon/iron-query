@@ -1,3 +1,4 @@
+#include "impl/render.hpp"
 #include <iron_query/condition.hpp>
 #include <iron_query/expr.hpp>
 
@@ -11,14 +12,14 @@ Condition Condition::FromRaw(std::string s) {
 }
 
 Condition Condition::operator&&(const Condition &other) const {
-  return Condition(Extract(OperatorPrecedence::kAnd) + " AND " +
-                       other.Extract(OperatorPrecedence::kAnd),
+  return Condition(impl::RenderBinary(Extract(OperatorPrecedence::kAnd), "AND",
+                                      other.Extract(OperatorPrecedence::kAnd)),
                    OperatorPrecedence::kAnd);
 }
 
 Condition Condition::operator||(const Condition &other) const {
-  return Condition(Extract(OperatorPrecedence::kOr) + " OR " +
-                       other.Extract(OperatorPrecedence::kOr),
+  return Condition(impl::RenderBinary(Extract(OperatorPrecedence::kOr), "OR",
+                                      other.Extract(OperatorPrecedence::kOr)),
                    OperatorPrecedence::kOr);
 }
 

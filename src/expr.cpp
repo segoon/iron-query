@@ -5,10 +5,10 @@
 #include <cmath>
 #include <iron_query/collation.hpp>
 #include <iron_query/condition.hpp>
+#include <iron_query/exception.hpp>
 #include <iron_query/expr.hpp>
 #include <iron_query/select_item.hpp>
 #include <iron_query/virtual_table.hpp>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -30,8 +30,8 @@ Expr Expr::FromInteger(unsigned long long value) {
 
 Expr Expr::FromDouble(double value) {
   if (!std::isfinite(value))
-    throw std::invalid_argument(
-        "iron_query: NaN and infinity have no plain SQL literal");
+    throw InvalidLiteral(std::to_string(value) +
+                         ": NaN and infinity have no plain SQL literal");
 
   // std::to_string would round to 6 fractional digits; to_chars gives the
   // shortest representation that reads back as the same double, and is
@@ -39,7 +39,8 @@ Expr Expr::FromDouble(double value) {
   std::array<char, 32> buf{};
   auto [end, ec] = std::to_chars(buf.data(), buf.data() + buf.size(), value);
   if (ec != std::errc())
-    throw std::invalid_argument("iron_query: cannot render double literal");
+    throw InvalidLiteral(std::to_string(value) +
+                         ": cannot render double literal");
 
   std::string s(buf.data(), end);
   // Keep the value typed as numeric: a bare "1" would be an integer literal.
@@ -54,8 +55,7 @@ Expr Expr::FromRaw(std::string s, OperatorPrecedence precedence) {
 
 Expr Expr::Literal(const std::string &value) {
   if (value.find('\0') != std::string::npos)
-    throw std::invalid_argument(
-        "iron_query: string literal must not contain NUL bytes");
+    throw InvalidLiteral("string literal must not contain NUL bytes");
 
   std::string escaped = "'";
   for (char c : value) {
@@ -69,8 +69,7 @@ Expr Expr::Literal(const std::string &value) {
 
 Expr Expr::Ident(const std::string &name) {
   if (name.find('\0') != std::string::npos)
-    throw std::invalid_argument(
-        "iron_query: identifier must not contain NUL bytes");
+    throw InvalidIdentifier("<identifier containing a NUL byte>");
 
   std::string escaped = "\"";
   for (char c : name) {
@@ -94,8 +93,7 @@ namespace {
 // requires at least one argument, unlike a real function call.
 void EnsureNonEmptyArgs(std::initializer_list<Expr> args, const char *name) {
   if (args.size() == 0)
-    throw std::invalid_argument(std::string("iron_query: ") + name +
-                                "() needs at least one argument");
+    throw InvalidArgument(std::string(name) + "() needs at least one argument");
 }
 
 std::string RenderCall(const std::string &name, const char *args_prefix,
@@ -202,15 +200,14 @@ Expr Expr::operator[](const Expr &other) const {
 }
 
 Expr Expr::operator^(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kExp) + " ^ " +
-                  other.Extract(OperatorPrecedence::kExp),
-              OperatorPrecedence::kExp);
+  return BinaryOp("^", other, OperatorPrecedence::kExp);
 }
 
 Expr Expr::BinaryOp(const std::string &op, const Expr &other,
                     OperatorPrecedence precedence) const {
   impl::ValidateOperatorName(op);
-  return Expr(Extract(precedence) + " " + op + " " + other.Extract(precedence),
+  return Expr(impl::RenderBinary(Extract(precedence), op.c_str(),
+                                 other.Extract(precedence)),
               precedence);
 }
 
@@ -270,7 +267,7 @@ namespace {
 // itself, so it is built here rather than via Extract().
 std::string RenderValueList(std::initializer_list<Expr> values) {
   if (values.size() == 0)
-    throw std::invalid_argument("iron_query: IN () needs at least one value");
+    throw InvalidArgument("IN () needs at least one value");
 
   std::vector<std::string> rendered;
   rendered.reserve(values.size());
@@ -361,70 +358,55 @@ Condition Expr::IsNotDistinctFrom(const Expr &other) const {
                    OperatorPrecedence::kIs);
 }
 
-Condition operator<(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) + " < " +
-                       b.Extract(OperatorPrecedence::kCompare),
+Condition Expr::CompareOp(const Expr &a, const char *op, const Expr &b) {
+  return Condition(impl::RenderBinary(a.Extract(OperatorPrecedence::kCompare),
+                                      op,
+                                      b.Extract(OperatorPrecedence::kCompare)),
                    OperatorPrecedence::kCompare);
+}
+
+Condition operator<(const Expr &a, const Expr &b) {
+  return Expr::CompareOp(a, "<", b);
 }
 
 Condition operator<=(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) +
-                       " <= " + b.Extract(OperatorPrecedence::kCompare),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "<=", b);
 }
 
 Condition operator>(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) + " > " +
-                       b.Extract(OperatorPrecedence::kCompare),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, ">", b);
 }
 
 Condition operator>=(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) +
-                       " >= " + b.Extract(OperatorPrecedence::kCompare),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, ">=", b);
 }
 
 Condition operator==(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) + " = " +
-                       b.Extract(OperatorPrecedence::kCompare),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "=", b);
 }
 
 Condition operator!=(const Expr &a, const Expr &b) {
-  return Condition(a.Extract(OperatorPrecedence::kCompare) +
-                       " != " + b.Extract(OperatorPrecedence::kCompare),
-                   OperatorPrecedence::kCompare);
+  return Expr::CompareOp(a, "!=", b);
 }
 
 Expr Expr::operator+(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kPlus) + " + " +
-                  other.Extract(OperatorPrecedence::kPlus),
-              OperatorPrecedence::kPlus);
+  return BinaryOp("+", other, OperatorPrecedence::kPlus);
 }
 
 Expr Expr::operator-(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kPlus) + " - " +
-                  other.Extract(OperatorPrecedence::kPlus),
-              OperatorPrecedence::kPlus);
+  return BinaryOp("-", other, OperatorPrecedence::kPlus);
 }
 
 Expr Expr::operator*(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kMul) + " * " +
-                  other.Extract(OperatorPrecedence::kMul),
-              OperatorPrecedence::kMul);
+  return BinaryOp("*", other, OperatorPrecedence::kMul);
 }
 
 Expr Expr::operator/(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kMul) + " / " +
-                  other.Extract(OperatorPrecedence::kMul),
-              OperatorPrecedence::kMul);
+  return BinaryOp("/", other, OperatorPrecedence::kMul);
 }
 
 Expr Expr::operator%(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kMul) + " % " +
-                  other.Extract(OperatorPrecedence::kMul),
-              OperatorPrecedence::kMul);
+  return BinaryOp("%", other, OperatorPrecedence::kMul);
 }
 
 Expr Expr::operator-() const {
@@ -438,16 +420,13 @@ Expr Expr::operator!() const {
 }
 
 Expr Expr::Concat(const Expr &other) const {
-  return Expr(Extract(OperatorPrecedence::kAnyOther) + " || " +
-                  other.Extract(OperatorPrecedence::kAnyOther),
-              OperatorPrecedence::kAnyOther);
+  return BinaryOp("||", other, OperatorPrecedence::kAnyOther);
 }
 
 SelectItem Expr::As(std::string_view name) const {
   // Not impl::ValidateIdentifier(): a column alias cannot be dot-qualified.
   if (!impl::IsPlainIdentifier(name))
-    throw std::invalid_argument("iron_query: invalid column alias: " +
-                                std::string(name));
+    throw InvalidIdentifier(std::string(name));
   return SelectItem(ToString() + " AS " + std::string(name));
 }
 

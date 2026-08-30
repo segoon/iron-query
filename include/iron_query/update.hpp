@@ -11,6 +11,8 @@
 namespace iron_query {
 
 /// @brief Transitional representation for UPDATE query
+/// @see https://www.postgresql.org/docs/current/sql-update.html
+/// @ingroup statements
 class [[nodiscard]] Update final {
 public:
   /// @brief Starts an `UPDATE tbl` query.
@@ -24,23 +26,23 @@ public:
   /// @brief Sets the FROM clause, so SET/WHERE expressions may reference
   /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
   /// VirtualTable::As has aliased.
-  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// @throws LogicError if `tbl` is a subquery without an alias, or if
   /// the FROM clause was already set.
   Update From(const VirtualTable &tbl) &&;
 
   /// @brief Sets the WHERE clause.
-  /// @throws std::logic_error if the WHERE clause was already set.
+  /// @throws LogicError if the WHERE clause was already set.
   Update Where(Condition exp) &&;
 
   /// @brief Sets the RETURNING clause to a single entry.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   Update Returning(SelectItem item) &&;
 
   /// @brief Sets the RETURNING clause to a comma-separated list of entries.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   Update Returning(std::initializer_list<SelectItem> items) &&;
 
-  /// @throws std::logic_error if no SET assignment was added.
+  /// @throws LogicError if no SET assignment was added.
   std::string ToString() const;
 
 private:

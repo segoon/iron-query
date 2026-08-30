@@ -1,13 +1,12 @@
 #include <iron_query/case_builder.hpp>
-#include <stdexcept>
+#include <iron_query/exception.hpp>
 #include <utility>
 
 namespace iron_query {
 
 CaseBuilder CaseBuilder::When(Condition cond) && {
   if (has_pending_when_)
-    throw std::logic_error(
-        "iron_query: When() called twice without a matching Then()");
+    throw LogicError("When() called twice without a matching Then()");
   pending_when_ = cond.ToString();
   has_pending_when_ = true;
   return std::move(*this);
@@ -15,8 +14,7 @@ CaseBuilder CaseBuilder::When(Condition cond) && {
 
 CaseBuilder CaseBuilder::Then(Expr result) && {
   if (!has_pending_when_)
-    throw std::logic_error("iron_query: Then() called without a "
-                           "preceding When()");
+    throw LogicError("Then() called without a preceding When()");
   whens_ += "WHEN " + pending_when_ + " THEN " + result.ToString() + " ";
   has_pending_when_ = false;
   return std::move(*this);
@@ -29,8 +27,7 @@ CaseBuilder CaseBuilder::Else(Expr result) && {
 
 Expr CaseBuilder::End() const {
   if (whens_.empty())
-    throw std::logic_error(
-        "iron_query: CASE requires at least one When()/Then() pair");
+    throw LogicError("CASE requires at least one When()/Then() pair");
 
   auto s = "CASE " + whens_;
   if (!else_.empty())

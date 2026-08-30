@@ -36,6 +36,8 @@ inline constexpr bool kIsSqlInteger =
 /// `-`, `*`, `/`, `%`, `^`), and index (`operator[]`) operators below do not
 /// check that their two operands are SQL-compatible types; e.g. comparing a
 /// numeric expression to a text literal renders valid, meaningless SQL.
+/// @see https://www.postgresql.org/docs/current/sql-expressions.html
+/// @ingroup expressions
 class [[nodiscard]] Expr final {
 public:
   /// @brief Wraps an integer literal of any width and signedness.
@@ -47,7 +49,7 @@ public:
 
   /// @brief Wraps a floating-point literal, rendered with enough digits to
   /// round-trip back to the same value.
-  /// @throws std::invalid_argument if `value` is NaN or infinite: SQL spells
+  /// @throws InvalidLiteral if `value` is NaN or infinite: SQL spells
   /// those as typed literals (`'NaN'::%float8`), so use @ref FromRaw instead.
   template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
   Expr(T value) : Expr(FromDouble(static_cast<double>(value))) {}
@@ -74,12 +76,14 @@ public:
   /// @brief Builds a properly escaped and quoted SQL string literal out of an
   /// arbitrary (possibly untrusted) value. Use this instead of Expr(string)
   /// whenever the content is not a trusted, developer-written SQL fragment.
+  /// @throws InvalidLiteral if `value` contains a NUL byte.
   static Expr Literal(const std::string &value);
 
   /// @brief Builds a properly escaped and quoted SQL identifier out of an
   /// arbitrary (possibly untrusted/dynamic) name. Use this instead of
   /// Expr(string) whenever a table/column name is not a trusted,
   /// developer-written literal.
+  /// @throws InvalidIdentifier if `name` contains a NUL byte.
   static Expr Ident(const std::string &name);
 
   /// @brief The SQL NULL literal. Note that comparing with it is never true:
@@ -92,7 +96,7 @@ public:
   /// @brief Builds a function call expression, e.g. Expr::Call("COALESCE",
   /// {a, b}) -> "COALESCE(a, b)". `name` must be a valid (optionally dotted,
   /// e.g. "pg_catalog.now") SQL identifier.
-  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @throws InvalidIdentifier if `name` is not a valid identifier.
   /// @note Does not check `args`' count or types against the named SQL
   /// function's actual signature.
   static Expr Call(const std::string &name, std::initializer_list<Expr> args);
@@ -100,28 +104,28 @@ public:
   /// @brief Generalizes @ref CountDistinct to any aggregate, e.g.
   /// CallDistinct("string_agg", {x, sep}) -> "string_agg(DISTINCT x, sep)".
   /// `name` must be a valid (optionally dotted) SQL identifier.
-  /// @throws std::invalid_argument if `name` is not a valid identifier or
-  /// `args` is empty.
+  /// @throws InvalidIdentifier if `name` is not a valid identifier.
+  /// @throws InvalidArgument if `args` is empty.
   /// @note Does not check `args`' count or types against the named SQL
   /// aggregate's actual signature.
   static Expr CallDistinct(const std::string &name,
                            std::initializer_list<Expr> args);
 
   /// @brief COALESCE(args...): the first non-NULL argument.
-  /// @throws std::invalid_argument if `args` is empty.
+  /// @throws InvalidArgument if `args` is empty.
   static Expr Coalesce(std::initializer_list<Expr> args);
 
   /// @brief NULLIF(a, b): NULL if `a` equals `b`, else `a`.
   static Expr NullIf(const Expr &a, const Expr &b);
 
   /// @brief GREATEST(args...).
-  /// @throws std::invalid_argument if `args` is empty.
+  /// @throws InvalidArgument if `args` is empty.
   /// @note Unlike @ref Max, this is not an aggregate: it picks the greatest
   /// among its arguments, not among rows.
   static Expr Greatest(std::initializer_list<Expr> args);
 
   /// @brief LEAST(args...).
-  /// @throws std::invalid_argument if `args` is empty.
+  /// @throws InvalidArgument if `args` is empty.
   /// @note Unlike @ref Min, this is not an aggregate: it picks the least
   /// among its arguments, not among rows.
   static Expr Least(std::initializer_list<Expr> args);
@@ -135,7 +139,7 @@ public:
   /// @brief Arbitrary prefix operator not otherwise named by IronQuery, e.g.
   /// PrefixOp("@", x) -> "@ x". `op` must be a syntactically valid SQL
   /// operator name.
-  /// @throws std::invalid_argument if `op` is not a syntactically valid
+  /// @throws InvalidOperator if `op` is not a syntactically valid
   /// operator name.
   /// @note Does not check that `op` names a real operator or that `operand`
   /// is a valid operand for it.
@@ -194,7 +198,7 @@ public:
   /// BinaryOp("~", pattern) -> "this ~ pattern" (PostgreSQL regex match).
   /// `op` must be a syntactically valid SQL operator name; it is not checked
   /// against a real operator catalog.
-  /// @throws std::invalid_argument if `op` is not a syntactically valid
+  /// @throws InvalidOperator if `op` is not a syntactically valid
   /// operator name.
   /// @note Does not check that `op` names a real operator or that `this` and
   /// `other` are valid operands for it.
@@ -240,7 +244,7 @@ public:
   Condition NotSimilarTo(const Expr &a) const;
 
   /// @brief `this IN (a, b, c)`.
-  /// @throws std::invalid_argument if `values` is empty: SQL has no empty
+  /// @throws InvalidArgument if `values` is empty: SQL has no empty
   /// `IN ()` list.
   /// @note Does not check that all `values` share a common type with `this`
   /// or with each other.
@@ -250,7 +254,7 @@ public:
   Condition In(const VirtualTable &subquery) const;
 
   /// @brief `this NOT IN (a, b, c)`.
-  /// @throws std::invalid_argument if `values` is empty.
+  /// @throws InvalidArgument if `values` is empty.
   /// @note Does not check that all `values` share a common type with `this`
   /// or with each other.
   Condition NotIn(std::initializer_list<Expr> values) const;
@@ -327,7 +331,7 @@ public:
 
   /// @brief Names this expression in a SELECT list: `this AS name`. `name`
   /// must be a plain (undotted) SQL identifier.
-  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @throws InvalidIdentifier if `name` is not a valid identifier.
   SelectItem As(std::string_view name) const;
 
   /// @brief Renders the expression as SQL text, parenthesizing it if its
@@ -343,6 +347,12 @@ public:
 
 private:
   friend class Condition;
+  friend Condition operator<(const Expr &a, const Expr &b);
+  friend Condition operator<=(const Expr &a, const Expr &b);
+  friend Condition operator>(const Expr &a, const Expr &b);
+  friend Condition operator>=(const Expr &a, const Expr &b);
+  friend Condition operator==(const Expr &a, const Expr &b);
+  friend Condition operator!=(const Expr &a, const Expr &b);
 
   Expr(std::string s);
   Expr(std::string expr, OperatorPrecedence precedence);
@@ -350,6 +360,8 @@ private:
   static Expr FromInteger(long long value);
   static Expr FromInteger(unsigned long long value);
   static Expr FromDouble(double value);
+
+  static Condition CompareOp(const Expr &a, const char *op, const Expr &b);
 
   std::string expr_;
   OperatorPrecedence precedence_;

@@ -9,6 +9,7 @@
 namespace iron_query {
 
 /// @brief Kind of SQL JOIN, e.g. @ref Inner or @ref LeftOuter.
+/// @ingroup statements
 struct [[nodiscard]] JoinKind {
   /// @brief The SQL keyword(s) for this join kind, e.g. "INNER".
   virtual std::string_view ToString() const = 0;
@@ -60,6 +61,8 @@ struct [[nodiscard]] NaturalFullOuter final : JoinKind {
 };
 
 /// @brief Transitional representation for JOIN query
+/// @see https://www.postgresql.org/docs/current/sql-select.html
+/// @ingroup statements
 class [[nodiscard]] Join final : public VirtualTable {
 public:
   /// @brief Builds `a kind JOIN b`.
@@ -68,15 +71,15 @@ public:
   /// @brief Sets the ON clause.
   /// @note Does not check that `exp` references only columns of the two
   /// joined tables.
-  /// @throws std::logic_error if this is a NATURAL join, if the ON clause
+  /// @throws LogicError if this is a NATURAL join, if the ON clause
   /// was already set, or if a USING clause was already set.
   Join On(Condition exp) &&;
 
   /// @brief Sets the USING (cols) clause: joins by equating same-named
   /// columns from each side.
-  /// @throws std::logic_error if this is a NATURAL join, if a USING clause
+  /// @throws LogicError if this is a NATURAL join, if a USING clause
   /// was already set, or if an ON clause was already set.
-  /// @throws std::invalid_argument if `columns` is empty.
+  /// @throws InvalidArgument if `columns` is empty.
   Join Using(std::initializer_list<Expr> columns) &&;
 
   std::string ToString() const override;

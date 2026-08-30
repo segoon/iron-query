@@ -5,6 +5,8 @@
 namespace iron_query {
 
 /// @brief A collation name for use with @ref Expr::Collate.
+/// @see https://www.postgresql.org/docs/current/collation.html
+/// @ingroup expressions
 class [[nodiscard]] Collation final {
 public:
   /// @brief Wraps a trusted, developer-written collation name verbatim.

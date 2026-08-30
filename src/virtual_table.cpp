@@ -1,8 +1,8 @@
 #include "impl/identifier.hpp"
+#include <iron_query/exception.hpp>
 #include <iron_query/expr.hpp>
 #include <iron_query/table.hpp>
 #include <iron_query/virtual_table.hpp>
-#include <stdexcept>
 
 namespace iron_query {
 
@@ -15,8 +15,7 @@ std::string VirtualTable::ToStringBracketed() const {
 std::string VirtualTable::ToStringAsFromItem() const {
   // PostgreSQL rejects "FROM (SELECT ...)" with "subquery in FROM must have an
   // alias"; failing here turns that server-side error into a build-time one.
-  throw std::logic_error(
-      "iron_query: this FROM item requires an alias; use As()");
+  throw LogicError("this FROM item requires an alias; use As()");
 }
 
 Table VirtualTable::As(std::string_view name) const {
