@@ -32,7 +32,17 @@ if(IRON_QUERY_IS_TOP_LEVEL)
   enable_testing()
   include(GoogleTest)
 
-  add_executable(iron-query-gtest tests/test.cpp)
+  add_executable(iron-query-gtest
+    tests/test_column.cpp
+    tests/test_delete.cpp
+    tests/test_expr.cpp
+    tests/test_insert.cpp
+    tests/test_join.cpp
+    tests/test_select.cpp
+    tests/test_set_op.cpp
+    tests/test_update.cpp
+    tests/test_with.cpp
+  )
   target_compile_options(iron-query-gtest PRIVATE ${IRON_QUERY_WARNINGS})
   target_link_libraries(iron-query-gtest gtest_main gtest iron-query)
   gtest_discover_tests(iron-query-gtest)
