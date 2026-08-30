@@ -1,4 +1,3 @@
-- example with raw libpq (?)
 - user-friendly readme: getting started, examples links, alternatives, development
 - generate table vars from actual DB
 - Table::FromRaw(), TableWithColumns::FromRaw() - simplify; FromRaw() -> FromUnsafeStr()
