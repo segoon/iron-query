@@ -9,6 +9,8 @@ namespace iron_query {
 /// (subquery, FROM source, etc.)
 class [[nodiscard]] WithQuery final : public VirtualTable {
 public:
+  /// @brief Wraps already-rendered `ctes` (`name AS (query), ...`) and
+  /// `main` query text; only reachable via @ref WithBuilder::Main.
   WithQuery(std::string ctes, std::string main);
 
   std::string ToString() const override;

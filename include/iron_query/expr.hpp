@@ -48,7 +48,7 @@ public:
   /// @brief Wraps a floating-point literal, rendered with enough digits to
   /// round-trip back to the same value.
   /// @throws std::invalid_argument if `value` is NaN or infinite: SQL spells
-  /// those as typed literals (`'NaN'::float8`), so use @ref FromRaw instead.
+  /// those as typed literals (`'NaN'::%float8`), so use @ref FromRaw instead.
   template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
   Expr(T value) : Expr(FromDouble(static_cast<double>(value))) {}
 

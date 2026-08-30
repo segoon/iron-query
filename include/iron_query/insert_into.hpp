@@ -39,7 +39,7 @@ public:
   /// @ref Columns list.
   /// @note Only each row's count is checked, not that every row has the
   /// same arity as every other row, nor value types against columns.
-  /// @note Not an overload of @ref Values: for a single-column table,
+  /// @note Not an overload of @ref Values — for a single-column table,
   /// `{{v}}` can list-initialize either a lone `Expr` or a one-element
   /// `std::initializer_list<Expr>`, so overloading would make that call
   /// ambiguous.

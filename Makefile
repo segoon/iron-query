@@ -19,6 +19,10 @@ sanitize:
 	cd build-sanitize && make -j12
 	cd build-sanitize && ./iron-query-gtest
 
+.PHONY: docs
+docs:
+	doxygen Doxyfile
+
 .PHONY: clean
 clean:
 	rm -rf build/ build-sanitize/

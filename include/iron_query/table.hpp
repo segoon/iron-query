@@ -23,6 +23,8 @@ public:
   std::string ToStringAsFromItem() const override;
 
 protected:
+  /// @brief Stores a pre-validated table name; only reachable via @ref
+  /// FromRaw or a subclass.
   Table(std::string name);
 
 private:

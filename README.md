@@ -104,3 +104,21 @@ Expr::Ident(dynamically_sourced_column_name)
 Bind-parameter placeholders (`_1`..`_10`) remain the preferred way to pass values when your
 SQL driver supports parameterized queries — prefer them over `Expr::Literal` whenever
 possible.
+
+
+# Build dependencies
+
+The library itself is header-only and has no dependencies beyond a C++17 compiler.
+Building/testing/linting the project needs, depending on the `make` target used:
+
+* `test` — CMake (>= 3.16), a C++17 compiler (GCC or Clang), GoogleTest (`libgtest-dev`)
+* `format`/`format-check` — `clang-format`
+* `tidy` — `clang-tidy`
+* `sanitize` — a C++17 compiler with `-fsanitize=address,undefined` support
+* `docs` — `doxygen` (optionally `graphviz`/`dot`, for inheritance/collaboration graphs)
+
+
+# Documentation
+
+Run `make docs` to generate the API reference from the doxygen comments in `include/`;
+open `build/docs/html/index.html` to view it.

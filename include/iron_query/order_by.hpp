@@ -29,8 +29,11 @@ struct [[nodiscard]] OrderByTerm final {
   OrderByTerm(Expr expr, SortDirection direction = SortDirection::kAscending,
               NullsOrder nulls_order = NullsOrder::kDefault);
 
+  /// @brief The expression being sorted on.
   Expr expr;
+  /// @brief Sort direction (`ASC`/`DESC`).
   SortDirection direction;
+  /// @brief `NULLS FIRST/LAST` placement.
   NullsOrder nulls_order;
 };
 
