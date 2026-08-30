@@ -122,14 +122,21 @@ whole point of the product (see `docs/VISION.md`).
 
 ### Supported
 
-- `Column{name, type, is_nullable}` with comparison operators, implicit `Expr`
-  conversion, and an explicit `Column::ToExpr()` for reaching the rest of
+- `Column{name, type, is_nullable}` with an implicit `Expr` conversion that lets
+  it reach `Expr`'s comparison operators (`< <= > >= == !=`, free functions
+  found via ADL) and an explicit `Column::ToExpr()` for reaching the rest of
   `Expr`'s API (`IsNull`, `Like`, `In`, `Between`, arithmetic, ...) without
   growing `Column`'s own overload set.
 - `TableWithColumns` + `SelectArgAll()` — the "no lost field after migration" story.
+- `TableWithColumns::As(alias)` returns a `TableWithColumns` (not a bare `Table`),
+  preserving the column list under the new alias; `TableWithColumns::Dot(col)`
+  qualifies a column reference as `alias.col` and throws if `col` isn't one of
+  the table's declared columns, so a single alias declaration is reused for both
+  the `FROM`/`JOIN` item and every qualified reference to it.
 - `TableAlias::From()` with identifier validation; `TableAlias::Dot` returns a
   ready-to-use, correctly-precedenced `Expr` (`alias.column`), so no
-  `Expr::FromRaw` wrapping is needed to qualify a column reference.
+  `Expr::FromRaw` wrapping is needed to qualify a column reference. Useful when
+  no `TableWithColumns` (and thus no column list to verify against) exists.
 - Trust boundary is explicit: every unescaped entry point is named `*Raw`.
 - `Condition` vs `Expr` separation, so `Where(age + 1)` does not compile.
 - `SelectItem` vs `Expr` separation, so `Where(x.As("y"))` does not compile either.
@@ -152,7 +159,6 @@ whole point of the product (see `docs/VISION.md`).
 |---|---|---|
 | `is_nullable` is stored and never used | 7 | Could reject `col == NULL`, or warn on `!=` against a nullable column. |
 | `Column.type` is stored and never used | 6 | Could power a typed `Cast`, or reject `text_col + int_col`. |
-| No `TableWithColumns` → alias binding | 8 | Nothing ties an alias to a column set, so `alias.Dot(col)` can't verify `col` belongs to the table. |
 | `Expr::Ident` doesn't reject embedded quotes' cousins | 3 | Escaping is correct (`""` doubling, NUL rejected), but the identifier-length limit (63 bytes in PG) is silently exceeded. |
 | No `Column`/table generation from a schema | 8 | The "after migration" promise needs a codegen step or a macro; currently the developer hand-writes `Column{...}`. |
 | No dialect abstraction | 6 | `$N` placeholders, `COLLATE`, `!=` vs `<>` are all hardcoded PG-ish. MySQL/SQLite would need `?` placeholders and backtick quoting. |
@@ -172,23 +178,17 @@ Ordered by (rarity × how badly the gap forces users back into raw strings).
 
 **P2 — makes the schema-safety promise real**
 
-7. **`TableWithColumns` → alias binding**: hand out `Column`s already bound to their
-   table/alias, so a qualified reference needs neither `FromRaw` nor a separate
-   `TableAlias::Dot` call, and `alias.Dot(col)` can verify `col` actually belongs to the
-   table. (`TableAlias::Dot` already returns `Expr` — see §3 Supported.) This subsumes the
-   `Column` operator duplication — make `Column` convert to a fully-qualified `Expr` once
-   instead of re-declaring operators on it.
-8. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
+7. Use `Column::is_nullable` and `Column::type` for something (reject `== NULL`, type a
    `Cast`), or drop them.
-9. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
+8. A schema→`TableWithColumns` codegen path, so "lost field after migration" is a
    compile error rather than a convention.
 
 **P3 — breadth**
 
-10. Window functions.
-11. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
-12. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
-13. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
+9. Window functions.
+10. JSON operators, arrays, `EXTRACT`/`INTERVAL`.
+11. `WITH RECURSIVE`, `LATERAL`, `FOR UPDATE`.
+12. Dialect abstraction (placeholder style, identifier quoting) if non-PG targets matter.
 
 **Explicitly out of scope** (worth writing into `docs/VISION.md`): DDL, transaction
 control, `EXPLAIN`, `COPY`, permissions, and anything an ORM would do (mapping rows to

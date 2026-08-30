@@ -1233,6 +1233,36 @@ TEST(TableWithColumns, Simple) {
             "SELECT name, age FROM foo");
 }
 
+TEST(TableWithColumns, AsAndDotSelfJoin) {
+  Column name{"name", "TEXT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name});
+  TableWithColumns lhs = users.As("lhs");
+  TableWithColumns rhs = users.As("rhs");
+
+  EXPECT_EQ(From(Join(lhs, rhs, Inner()).On(lhs.Dot(name) == rhs.Dot(name)))
+                .Select(lhs.Dot(name).As("name"))
+                .ToString(),
+            "SELECT lhs.name AS name FROM users AS lhs INNER JOIN "
+            "users AS rhs ON lhs.name = rhs.name");
+}
+
+TEST(TableWithColumns, DotRejectsUnknownColumn) {
+  Column name{"name", "TEXT"};
+  Column age{"age", "BIGINT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name}).As("u");
+
+  EXPECT_EQ(users.Dot(name).ToString(), "u.name");
+  EXPECT_THROW(Ignore(users.Dot(age)), std::invalid_argument);
+  EXPECT_THROW(Ignore(users.Dot("nonexistent")), std::invalid_argument);
+}
+
+TEST(TableWithColumns, DotRequiresAsFirst) {
+  Column name{"name", "TEXT"};
+  TableWithColumns users = TableWithColumns::FromRaw("users", {name});
+
+  EXPECT_THROW(Ignore(users.Dot(name)), std::logic_error);
+}
+
 TEST(TableAlias, Dot) {
   TableAlias alias = TableAlias::From("bar");
   Column name{"name", "TEXT"};

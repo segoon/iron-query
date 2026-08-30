@@ -361,39 +361,39 @@ Condition Expr::IsNotDistinctFrom(const Expr &other) const {
                    OperatorPrecedence::kIs);
 }
 
-Condition Expr::operator<(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " < " +
-                       other.Extract(OperatorPrecedence::kCompare),
+Condition operator<(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) + " < " +
+                       b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 
-Condition Expr::operator<=(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) +
-                       " <= " + other.Extract(OperatorPrecedence::kCompare),
+Condition operator<=(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) +
+                       " <= " + b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 
-Condition Expr::operator>(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " > " +
-                       other.Extract(OperatorPrecedence::kCompare),
+Condition operator>(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) + " > " +
+                       b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 
-Condition Expr::operator>=(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) +
-                       " >= " + other.Extract(OperatorPrecedence::kCompare),
+Condition operator>=(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) +
+                       " >= " + b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 
-Condition Expr::operator==(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) + " = " +
-                       other.Extract(OperatorPrecedence::kCompare),
+Condition operator==(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) + " = " +
+                       b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 
-Condition Expr::operator!=(const Expr &other) const {
-  return Condition(Extract(OperatorPrecedence::kCompare) +
-                       " != " + other.Extract(OperatorPrecedence::kCompare),
+Condition operator!=(const Expr &a, const Expr &b) {
+  return Condition(a.Extract(OperatorPrecedence::kCompare) +
+                       " != " + b.Extract(OperatorPrecedence::kCompare),
                    OperatorPrecedence::kCompare);
 }
 

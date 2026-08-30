@@ -5,6 +5,7 @@
 #include <iron_query/expr.hpp>
 #include <iron_query/table.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace iron_query {
@@ -26,11 +27,32 @@ public:
   /// as a SELECT list.
   Expr SelectArgAll() const;
 
+  /// @brief Aliases this table as `this AS name`, preserving its column list
+  /// so @ref Dot can verify a referenced column actually belongs to this
+  /// table. Hides @ref VirtualTable::As, which would otherwise discard the
+  /// column list.
+  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  TableWithColumns As(std::string_view name) const;
+
+  /// @brief Qualifies `column_name` as `alias.column_name`.
+  /// @throws std::logic_error if called before @ref As.
+  /// @throws std::invalid_argument if `column_name` is not one of this
+  /// table's columns.
+  Expr Dot(const std::string &column_name) const;
+
+  /// @brief Qualifies `column` as `alias.column.name`.
+  /// @throws std::logic_error if called before @ref As.
+  /// @throws std::invalid_argument if `column` is not one of this table's
+  /// columns.
+  Expr Dot(const Column &column) const;
+
 private:
-  TableWithColumns(std::string name, std::vector<Column> columns);
+  TableWithColumns(std::string name, std::vector<Column> columns,
+                   std::string alias = "");
   TableWithColumns(std::string name, std::initializer_list<Column> columns);
 
   std::vector<Column> columns_;
+  std::string alias_;
 };
 
 } // namespace iron_query

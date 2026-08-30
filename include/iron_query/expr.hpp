@@ -295,24 +295,6 @@ public:
   /// comparison.
   Condition IsNotDistinctFrom(const Expr &other) const;
 
-  /// @brief `this < other`.
-  Condition operator<(const Expr &other) const;
-
-  /// @brief `this <= other`.
-  Condition operator<=(const Expr &other) const;
-
-  /// @brief `this > other`.
-  Condition operator>(const Expr &other) const;
-
-  /// @brief `this >= other`.
-  Condition operator>=(const Expr &other) const;
-
-  /// @brief `this = other`.
-  Condition operator==(const Expr &other) const;
-
-  /// @brief `this != other`.
-  Condition operator!=(const Expr &other) const;
-
   /// @brief `this + other`.
   Expr operator+(const Expr &other) const;
 
@@ -372,5 +354,23 @@ private:
   std::string expr_;
   OperatorPrecedence precedence_;
 };
+
+/// @brief `a < b`.
+Condition operator<(const Expr &a, const Expr &b);
+
+/// @brief `a <= b`.
+Condition operator<=(const Expr &a, const Expr &b);
+
+/// @brief `a > b`.
+Condition operator>(const Expr &a, const Expr &b);
+
+/// @brief `a >= b`.
+Condition operator>=(const Expr &a, const Expr &b);
+
+/// @brief `a = b`.
+Condition operator==(const Expr &a, const Expr &b);
+
+/// @brief `a != b`.
+Condition operator!=(const Expr &a, const Expr &b);
 
 } // namespace iron_query

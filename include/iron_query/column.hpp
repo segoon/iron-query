@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iron_query/condition.hpp>
 #include <iron_query/expr.hpp>
 #include <iron_query/select_item.hpp>
 #include <string>
@@ -33,19 +32,6 @@ struct [[nodiscard]] Column final {
   /// @brief Names this column in a SELECT list: `this AS alias`.
   /// @throws std::invalid_argument if `alias` is not a valid identifier.
   SelectItem As(std::string_view alias) const;
-
-  /// @brief `this < other`.
-  Condition operator<(const Expr &other) const;
-  /// @brief `this <= other`.
-  Condition operator<=(const Expr &other) const;
-  /// @brief `this > other`.
-  Condition operator>(const Expr &other) const;
-  /// @brief `this >= other`.
-  Condition operator>=(const Expr &other) const;
-  /// @brief `this = other`.
-  Condition operator==(const Expr &other) const;
-  /// @brief `this != other`.
-  Condition operator!=(const Expr &other) const;
 };
 
 } // namespace iron_query
