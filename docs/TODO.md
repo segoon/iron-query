@@ -8,3 +8,5 @@
 - WithQuery - unsafe?
 - links to PG docs in doxygen class docs
 - userver's json::Value -> iq::Expr?
+- IndentBlock() seems slow
+- use Expr::BinaryOp() in .cpp to remove code duplication
