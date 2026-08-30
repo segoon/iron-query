@@ -12,6 +12,24 @@ Answer the following questions:
 2) Do you want to keep yourself distant from SQL?
 3) Is the query performance critical?
 
+# Features
+
+1) `*Raw`-named entry points (`Expr::FromRaw`, `Table::FromRaw`, ...) mark every
+   place unescaped SQL can enter a query, so the untrusted-input surface can be
+   audited by grepping for `Raw`;
+2) `Condition`/`Expr`/`SelectItem` are distinct types, so a non-boolean
+   expression in `WHERE`/`HAVING`/`ON` or a select-list-only alias used
+   elsewhere fails to compile instead of building a wrong query;
+3) Every clause-setting method (`WHERE`, `LIMIT`, `FROM`/`USING`, `SELECT`, ...)
+   can be set at most once per builder, so a copy-paste bug like
+   `DELETE ... USING ... USING ...` throws instead of silently overwriting
+   the first clause;
+4) No template-metaprogramming EDSL: queries are built with ordinary
+   OOP, not deeply nested templates, so compile errors stay readable;
+5) `TableWithColumns::As()`/`Dot()` binds an alias to its declared column
+   list, so a qualified reference to a column that doesn't belong to the
+   table throws at build time instead of failing on the server.
+
 # Architectual decisions
 
 1) This is a plain C++ -> SQL mapping builder;
