@@ -10,6 +10,7 @@ namespace iron_query {
 // userver (???) PostgreSQL part:
 
 /// @brief SQL table column
+/// @ingroup schema
 struct [[nodiscard]] Column final {
   /// Column name
   std::string name;
@@ -30,7 +31,7 @@ struct [[nodiscard]] Column final {
   Expr ToExpr() const;
 
   /// @brief Names this column in a SELECT list: `this AS alias`.
-  /// @throws std::invalid_argument if `alias` is not a valid identifier.
+  /// @throws InvalidIdentifier if `alias` is not a valid identifier.
   SelectItem As(std::string_view alias) const;
 };
 

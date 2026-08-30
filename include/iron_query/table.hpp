@@ -6,6 +6,7 @@
 namespace iron_query {
 
 /// @brief Table with name
+/// @ingroup schema
 class [[nodiscard]] Table /* not final! */ : public VirtualTable {
 public:
   /// @brief Wraps a trusted, developer-written table name/reference. Never

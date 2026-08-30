@@ -7,6 +7,7 @@
 namespace iron_query {
 
 /// @brief Kind of SQL set operation, e.g. @ref Union or @ref Except.
+/// @ingroup statements
 struct [[nodiscard]] SetOpKind {
   /// @brief The SQL keyword(s) for this set operation, e.g. "UNION".
   virtual std::string_view ToString() const = 0;
@@ -30,6 +31,8 @@ struct [[nodiscard]] Except final : SetOpKind {
 };
 
 /// @brief Transitional representation for UNION/UNION ALL/INTERSECT/EXCEPT
+/// @see https://www.postgresql.org/docs/current/sql-select.html
+/// @ingroup statements
 class [[nodiscard]] SetOp final : public VirtualTable {
 public:
   /// @brief Builds `a kind b`.

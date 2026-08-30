@@ -39,6 +39,14 @@ TEST(With, InvalidNameThrows) {
       std::invalid_argument);
 }
 
+TEST(With, DuplicateNameThrows) {
+  Table tbl = Table::FromRaw("foo");
+
+  EXPECT_THROW(Ignore(With("a", From(tbl).Select(Expr::FromRaw("x")))
+                          .With("a", From(tbl).Select(Expr::FromRaw("y")))),
+               std::logic_error);
+}
+
 TEST(With, DottedNameAllowed) {
   Table tbl = Table::FromRaw("foo");
 

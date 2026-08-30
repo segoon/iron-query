@@ -1,6 +1,6 @@
 #include "impl/render.hpp"
+#include <iron_query/exception.hpp>
 #include <iron_query/update.hpp>
-#include <stdexcept>
 #include <utility>
 
 namespace iron_query {
@@ -36,7 +36,7 @@ Update Update::Returning(std::initializer_list<SelectItem> items) && {
 
 std::string Update::ToString() const {
   if (set_.empty())
-    throw std::logic_error("iron_query: SET clause is not set");
+    throw LogicError("SET clause is not set");
 
   auto s = "UPDATE " + table_ + " SET " + set_;
   if (!from_.empty())

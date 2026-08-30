@@ -7,18 +7,21 @@
 namespace iron_query {
 
 /// @brief Transitional representation for CASE WHEN ... END
+/// @see
+/// https://www.postgresql.org/docs/current/sql-expressions.html#SQL-EXPRESSIONS-CASE
+/// @ingroup expressions
 class [[nodiscard]] CaseBuilder final {
 public:
   /// @brief Starts an empty CASE expression; call @ref When to add branches.
   CaseBuilder() = default;
 
   /// @brief Begins a new `WHEN cond` branch.
-  /// @throws std::logic_error if called twice in a row without a matching
+  /// @throws LogicError if called twice in a row without a matching
   /// @ref Then in between.
   CaseBuilder When(Condition cond) &&;
 
   /// @brief Completes the pending branch as `WHEN cond THEN result`.
-  /// @throws std::logic_error if not preceded by @ref When.
+  /// @throws LogicError if not preceded by @ref When.
   /// @note Does not check that all `Then`/`Else` branches of the same CASE
   /// share a compatible result type.
   CaseBuilder Then(Expr result) &&;
@@ -29,7 +32,7 @@ public:
   CaseBuilder Else(Expr result) &&;
 
   /// @brief Finalizes the expression as `CASE ... [ELSE ...] END`.
-  /// @throws std::logic_error if no `WHEN`/`THEN` pair was added.
+  /// @throws LogicError if no `WHEN`/`THEN` pair was added.
   Expr End() const;
 
 private:
@@ -40,6 +43,7 @@ private:
 };
 
 /// @brief Handy fabric for @ref CaseBuilder
+/// @ingroup expressions
 CaseBuilder Case();
 
 } // namespace iron_query

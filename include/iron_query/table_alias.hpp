@@ -9,11 +9,12 @@ namespace iron_query {
 
 /// @brief A table alias, usable to qualify column references as
 /// `alias.column`.
+/// @ingroup schema
 class [[nodiscard]] TableAlias final {
 public:
   /// @brief Wraps `alias`, which must be a valid (optionally dotted) SQL
   /// identifier.
-  /// @throws std::invalid_argument if `alias` is not a valid identifier.
+  /// @throws InvalidIdentifier if `alias` is not a valid identifier.
   static TableAlias From(std::string_view alias);
 
   /// @brief Qualifies a column name as `alias.column`.

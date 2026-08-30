@@ -1,6 +1,6 @@
 #include "impl/render.hpp"
 #include <iron_query/delete_from.hpp>
-#include <stdexcept>
+#include <iron_query/exception.hpp>
 #include <utility>
 
 namespace iron_query {
@@ -29,7 +29,7 @@ DeleteFrom DeleteFrom::Returning(std::initializer_list<SelectItem> items) && {
 
 std::string DeleteFrom::ToString() const {
   if (from_.empty())
-    throw std::logic_error("iron_query: FROM clause is not set");
+    throw LogicError("FROM clause is not set");
 
   auto s = "DELETE FROM " + from_;
   if (!using_.empty())

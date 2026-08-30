@@ -10,6 +10,8 @@
 namespace iron_query {
 
 /// @brief Transitional representation for DELETE FROM query
+/// @see https://www.postgresql.org/docs/current/sql-delete.html
+/// @ingroup statements
 class [[nodiscard]] DeleteFrom final : public VirtualTable {
 public:
   /// @brief Starts a `DELETE FROM tbl` query.
@@ -18,23 +20,23 @@ public:
   /// @brief Sets the USING clause, so WHERE expressions may reference
   /// columns of `tbl`. `tbl` may be a table, a join, or anything @ref
   /// VirtualTable::As has aliased.
-  /// @throws std::logic_error if `tbl` is a subquery without an alias, or if
+  /// @throws LogicError if `tbl` is a subquery without an alias, or if
   /// the USING clause was already set.
   DeleteFrom Using(const VirtualTable &tbl) &&;
 
   /// @brief Sets the WHERE clause.
-  /// @throws std::logic_error if the WHERE clause was already set.
+  /// @throws LogicError if the WHERE clause was already set.
   DeleteFrom Where(Condition exp) &&;
 
   /// @brief Sets the RETURNING clause to a single entry.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   DeleteFrom Returning(SelectItem item) &&;
 
   /// @brief Sets the RETURNING clause to a comma-separated list of entries.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   DeleteFrom Returning(std::initializer_list<SelectItem> items) &&;
 
-  /// @throws std::logic_error if the FROM clause was not set.
+  /// @throws LogicError if the FROM clause was not set.
   std::string ToString() const override;
 
 private:

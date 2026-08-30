@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <stdexcept>
+#include <iron_query/exception.hpp>
 #include <string>
 #include <string_view>
 
@@ -26,8 +26,7 @@ void ValidateIdentifier(std::string_view s) {
     std::size_t dot = s.find('.', start);
     std::string_view part = s.substr(start, dot - start);
     if (!IsPlainIdentifier(part))
-      throw std::invalid_argument("iron_query: invalid identifier: " +
-                                  std::string(s));
+      throw InvalidIdentifier(std::string(s));
     if (dot == std::string_view::npos)
       break;
     start = dot + 1;
@@ -49,8 +48,7 @@ void ValidateOperatorName(std::string_view s) {
   if (s.empty() || !std::all_of(s.begin(), s.end(), IsOperatorChar) ||
       s.find("--") != std::string_view::npos ||
       s.find("/*") != std::string_view::npos)
-    throw std::invalid_argument("iron_query: invalid operator name: " +
-                                std::string(s));
+    throw InvalidOperator(std::string(s));
 
   // A multi-character operator name ending in '+' or '-' must contain at
   // least one other operator-class character, or it would be ambiguous with
@@ -58,8 +56,7 @@ void ValidateOperatorName(std::string_view s) {
   // single-character "+" or "-" is exempt).
   if (s.size() > 1 && (s.back() == '+' || s.back() == '-') &&
       s.find_first_not_of("+-") == std::string_view::npos)
-    throw std::invalid_argument("iron_query: invalid operator name: " +
-                                std::string(s));
+    throw InvalidOperator(std::string(s));
 }
 
 } // namespace iron_query::impl

@@ -5,6 +5,7 @@
 namespace iron_query {
 
 /// @brief A synonym for $1
+/// @ingroup misc
 extern const Expr _1;
 extern const Expr _2;
 extern const Expr _3;

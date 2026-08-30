@@ -11,13 +11,15 @@
 namespace iron_query {
 
 /// @brief Transitional representation for INSERT INTO query
+/// @see https://www.postgresql.org/docs/current/sql-insert.html
+/// @ingroup statements
 class [[nodiscard]] InsertInto final {
 public:
   /// @brief Starts an `INSERT INTO tbl` query.
   InsertInto(const Table &tbl);
 
   /// @brief Sets the list of columns to insert into.
-  /// @throws std::logic_error if the column list was already set, or if the
+  /// @throws LogicError if the column list was already set, or if the
   /// count does not match an already-set @ref Values row's arity.
   /// @note Only the count is checked; `cols` are not checked to actually
   /// name columns of `tbl`.
@@ -25,7 +27,7 @@ public:
 
   /// @brief Sets a single row of values to insert, matching @ref Columns by
   /// position.
-  /// @throws std::logic_error if row values were already set (via this or
+  /// @throws LogicError if row values were already set (via this or
   /// @ref Rows), or if the count does not match an already-set @ref Columns
   /// list.
   /// @note Only the count is checked; each value's SQL type is not checked
@@ -34,7 +36,7 @@ public:
 
   /// @brief Sets multiple rows of values to insert, e.g. `Rows({{1, 2},
   /// {3, 4}})` for `VALUES (1, 2), (3, 4)`.
-  /// @throws std::logic_error if row values were already set (via this or
+  /// @throws LogicError if row values were already set (via this or
   /// @ref Values), or if any row's arity does not match an already-set
   /// @ref Columns list.
   /// @note Only each row's count is checked, not that every row has the
@@ -46,11 +48,11 @@ public:
   InsertInto Rows(std::initializer_list<std::initializer_list<Expr>> rows) &&;
 
   /// @brief Sets the RETURNING clause to a single entry.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   InsertInto Returning(SelectItem item) &&;
 
   /// @brief Sets the RETURNING clause to a comma-separated list of entries.
-  /// @throws std::logic_error if the RETURNING clause was already set.
+  /// @throws LogicError if the RETURNING clause was already set.
   InsertInto Returning(std::initializer_list<SelectItem> items) &&;
 
   /// @brief `ON CONFLICT DO NOTHING`, matching any conflict.
@@ -64,7 +66,7 @@ public:
   /// @brief `ON CONFLICT (target_cols) DO UPDATE SET column = value, ...`.
   /// Reference the row that triggered the conflict via
   /// `Expr::FromRaw("EXCLUDED.column")`.
-  /// @throws std::invalid_argument if `assignments` is empty.
+  /// @throws InvalidArgument if `assignments` is empty.
   /// @note Does not check that `target_cols` actually names a unique
   /// index/constraint on `tbl`, nor that `assignments`' columns belong to
   /// `tbl`.
@@ -72,7 +74,7 @@ public:
       std::initializer_list<Expr> target_cols,
       std::initializer_list<std::pair<Expr, Expr>> assignments) &&;
 
-  /// @throws std::logic_error if no columns or no rows were set, or if any
+  /// @throws LogicError if no columns or no rows were set, or if any
   /// row's arity does not match the columns' count.
   std::string ToString() const;
 

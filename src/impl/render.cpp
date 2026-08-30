@@ -23,6 +23,11 @@ std::string IndentBlock(const std::string &text, int spaces) {
   return s;
 }
 
+std::string RenderBinary(const std::string &lhs, const char *op,
+                         const std::string &rhs) {
+  return lhs + " " + op + " " + rhs;
+}
+
 std::string RenderTerm(const Expr &exp) { return exp.ToString(); }
 
 std::string RenderTerm(const SelectItem &item) { return item.ToString(); }

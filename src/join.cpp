@@ -1,6 +1,6 @@
 #include "impl/render.hpp"
+#include <iron_query/exception.hpp>
 #include <iron_query/join.hpp>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -32,24 +32,20 @@ Join::Join(const VirtualTable &a, const VirtualTable &b, const JoinKind &kind)
 
 Join Join::On(Condition exp) && {
   if (natural_)
-    throw std::logic_error("iron_query: NATURAL JOIN cannot have an ON clause");
+    throw LogicError("NATURAL JOIN cannot have an ON clause");
   if (!using_.empty())
-    throw std::logic_error(
-        "iron_query: JOIN cannot have both ON and USING clauses");
+    throw LogicError("JOIN cannot have both ON and USING clauses");
   impl::SetOnce(on_, "ON clause", exp.ToString());
   return std::move(*this);
 }
 
 Join Join::Using(std::initializer_list<Expr> columns) && {
   if (natural_)
-    throw std::logic_error(
-        "iron_query: NATURAL JOIN cannot have a USING clause");
+    throw LogicError("NATURAL JOIN cannot have a USING clause");
   if (!on_.empty())
-    throw std::logic_error(
-        "iron_query: JOIN cannot have both ON and USING clauses");
+    throw LogicError("JOIN cannot have both ON and USING clauses");
   if (columns.size() == 0)
-    throw std::invalid_argument(
-        "iron_query: USING clause needs at least one column");
+    throw InvalidArgument("USING clause needs at least one column");
   impl::SetOnce(using_, "USING clause",
                 impl::JoinCsv(impl::RenderAll(columns)));
   return std::move(*this);

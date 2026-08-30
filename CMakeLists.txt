@@ -35,6 +35,7 @@ if(IRON_QUERY_IS_TOP_LEVEL)
   add_executable(iron-query-gtest
     tests/test_column.cpp
     tests/test_delete.cpp
+    tests/test_exception.cpp
     tests/test_expr.cpp
     tests/test_insert.cpp
     tests/test_join.cpp

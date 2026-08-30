@@ -4,13 +4,17 @@
 
 namespace iron_query {
 
-/// @brief Sort direction for a single ORDER BY term. See @ref OrderByTerm.
+/// @brief Sort direction for a single ORDER BY term. See @ref
+/// iron_query::OrderByTerm.
+/// @ingroup expressions
 enum class SortDirection {
   kAscending,
   kDescending,
 };
 
-/// @brief Placement of NULLs within an ORDER BY term. See @ref OrderByTerm.
+/// @brief Placement of NULLs within an ORDER BY term. See @ref
+/// iron_query::OrderByTerm.
+/// @ingroup expressions
 enum class NullsOrder {
   /// @brief No explicit `NULLS FIRST/LAST`; the server's default applies
   /// (PostgreSQL: last for ascending, first for descending).
@@ -23,6 +27,7 @@ enum class NullsOrder {
 /// NULL placement. Implicitly constructible from just an @ref Expr for the
 /// common ascending case, e.g. `OrderBy({col1, {col2,
 /// SortDirection::kDescending}})`.
+/// @ingroup expressions
 struct [[nodiscard]] OrderByTerm final {
   /// @brief Wraps `expr` with the given sort `direction` (ascending by
   /// default) and `nulls_order` (server default by default).

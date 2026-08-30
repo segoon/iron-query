@@ -1,6 +1,6 @@
 #include "impl/render.hpp"
+#include <iron_query/exception.hpp>
 #include <iron_query/select_expr.hpp>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -87,12 +87,11 @@ std::string JoinCsvIndented(const std::vector<std::string> &items) {
 
 void SelectExpr::EnsureValid() const {
   if (select_.empty())
-    throw std::logic_error("iron_query: SELECT clause is not set");
+    throw LogicError("SELECT clause is not set");
   if (from_.empty())
-    throw std::logic_error("iron_query: FROM clause is not set");
+    throw LogicError("FROM clause is not set");
   if (distinct_ && !distinct_on_.empty())
-    throw std::logic_error(
-        "iron_query: DISTINCT and DISTINCT ON are mutually exclusive");
+    throw LogicError("DISTINCT and DISTINCT ON are mutually exclusive");
 }
 
 std::string SelectExpr::ToString() const {

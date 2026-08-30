@@ -8,6 +8,7 @@ Licensed under the [Apache License 2.0](LICENSE).
 # Do I need IronQuery?
 
 Answer the following questions:
+
 1) Are your queries structure defined in runtime (e.g. optional `LIMIT`/`WHERE` or dynamic `WHERE` clause)?
 2) Do you want to keep yourself distant from SQL?
 3) Is the query performance critical?
@@ -41,6 +42,7 @@ Answer the following questions:
 5) The builder DOES NOT check for missed required clause.
 
 The benefits of using the builder:
+
 1) Dynamically build complex WHERE clauses with something
    better than raw strings concatenation;
 2) Automatically use full set of table column names after schema migration;

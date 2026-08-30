@@ -11,6 +11,7 @@
 namespace iron_query {
 
 /// @brief Table with associated columns. Usually not created by hands.
+/// @ingroup schema
 class [[nodiscard]] TableWithColumns final : public Table {
 public:
   /// @brief Attaches a set of columns to a trusted, developer-written table
@@ -31,19 +32,18 @@ public:
   /// so @ref Dot can verify a referenced column actually belongs to this
   /// table. Hides @ref VirtualTable::As, which would otherwise discard the
   /// column list.
-  /// @throws std::invalid_argument if `name` is not a valid identifier.
+  /// @throws InvalidIdentifier if `name` is not a valid identifier.
   TableWithColumns As(std::string_view name) const;
 
   /// @brief Qualifies `column_name` as `alias.column_name`.
-  /// @throws std::logic_error if called before @ref As.
-  /// @throws std::invalid_argument if `column_name` is not one of this
-  /// table's columns.
+  /// @throws LogicError if called before @ref As.
+  /// @throws UnknownColumn if `column_name` is not one of this table's
+  /// columns.
   Expr Dot(const std::string &column_name) const;
 
   /// @brief Qualifies `column` as `alias.column.name`.
-  /// @throws std::logic_error if called before @ref As.
-  /// @throws std::invalid_argument if `column` is not one of this table's
-  /// columns.
+  /// @throws LogicError if called before @ref As.
+  /// @throws UnknownColumn if `column` is not one of this table's columns.
   Expr Dot(const Column &column) const;
 
 private:
