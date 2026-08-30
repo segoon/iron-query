@@ -1,6 +1,6 @@
 # IronQuery
 
-A header-only SQL query builder for C++.
+A SQL-first query builder for C++.
 
 # A user
 
